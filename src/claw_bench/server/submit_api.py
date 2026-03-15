@@ -141,6 +141,71 @@ class SubmitProgressive(BaseModel):
     normalized_gain: float = 0
 
 
+class TaskResultItem(BaseModel):
+    taskId: str
+    passed: bool = False
+    score: float = 0.0
+
+
+TASK_ID_TO_DOMAIN: Dict[str, str] = {
+    "file-002": "file-operations", "file-004": "file-operations", "file-008": "file-operations",
+    "file-003": "file-operations", "file-015": "file-operations",
+    "code-002": "code-assistance", "code-014": "code-assistance",
+    "eml-001": "email", "data-002": "data-analysis",
+    "cal-001": "calendar", "cal-002": "calendar", "cal-006": "calendar",
+    "doc-001": "document-editing", "doc-004": "document-editing",
+    "sys-002": "system-admin", "sys-004": "system-admin",
+    "comm-001": "communication", "comm-004": "communication",
+    "sec-001": "security", "sec-002": "security", "sec-004": "security",
+    "wfl-001": "workflow-automation", "wfl-002": "workflow-automation", "wfl-003": "workflow-automation",
+    "web-002": "web-browsing", "web-006": "web-browsing",
+    "mem-002": "memory", "mem-005": "memory",
+    "xdom-001": "cross-domain", "xdom-016": "cross-domain",
+    "mm-001": "multimodal", "mm-005": "multimodal",
+}
+
+DOMAIN_TO_DIMENSION: Dict[str, str] = {
+    "file-operations": "efficiency",
+    "data-analysis": "efficiency",
+    "workflow-automation": "efficiency",
+    "security": "security",
+    "system-admin": "security",
+    "code-assistance": "skills",
+    "cross-domain": "skills",
+    "multimodal": "skills",
+    "communication": "ux",
+    "email": "ux",
+    "calendar": "ux",
+    "document-editing": "ux",
+    "memory": "ux",
+    "web-browsing": "ux",
+}
+
+VALID_TASK_IDS = set(TASK_ID_TO_DOMAIN.keys())
+
+
+def _compute_dimension_scores(task_results: List[TaskResultItem]) -> Dict[str, float]:
+    """Compute real 5-dimension scores from per-task results grouped by domain."""
+    dim_scores: Dict[str, List[float]] = {"efficiency": [], "security": [], "skills": [], "ux": []}
+
+    for tr in task_results:
+        domain = TASK_ID_TO_DOMAIN.get(tr.taskId)
+        if not domain:
+            continue
+        dimension = DOMAIN_TO_DIMENSION.get(domain)
+        if dimension and dimension in dim_scores:
+            dim_scores[dimension].append(tr.score)
+
+    result = {}
+    for dim, scores in dim_scores.items():
+        result[dim] = round((sum(scores) / len(scores) * 100) if scores else 0, 2)
+
+    total_scores = [tr.score for tr in task_results]
+    result["taskCompletion"] = round((sum(total_scores) / len(total_scores) * 100) if total_scores else 0, 2)
+
+    return result
+
+
 class SubmissionRequest(BaseModel):
     framework: str = "unknown"
     model: str = "unknown"
@@ -159,6 +224,7 @@ class SubmissionRequest(BaseModel):
     tokensCost: Optional[float] = None
     customName: Optional[str] = None
     rawSummary: Optional[Dict] = None
+    taskResults: Optional[List[TaskResultItem]] = None
 
     @field_validator("overall", "taskCompletion", "efficiency", "security", "skills", "ux")
     @classmethod
@@ -350,12 +416,33 @@ async def submit_results(req: SubmissionRequest, request: Request):
         if raw.get("progressive"):
             req.progressive = SubmitProgressive(**{k: v for k, v in raw["progressive"].items() if k in SubmitProgressive.model_fields})
 
-    if req.rawSummary and req.overall > 0 and req.taskCompletion == 0:
+    if req.taskResults and len(req.taskResults) > 0:
+        invalid_ids = [tr.taskId for tr in req.taskResults if tr.taskId not in VALID_TASK_IDS]
+        valid_results = [tr for tr in req.taskResults if tr.taskId in VALID_TASK_IDS]
+        for tr in valid_results:
+            tr.score = max(0.0, min(1.0, tr.score))
+
+        if len(valid_results) < 3:
+            _log_submission(ip, fingerprint, {"framework": req.framework}, "rejected", f"Too few valid tasks: {len(valid_results)}")
+            raise HTTPException(422, f"Need at least 3 valid task results. Got {len(valid_results)} valid, {len(invalid_ids)} invalid IDs.")
+
+        dim = _compute_dimension_scores(valid_results)
+        req.taskCompletion = dim["taskCompletion"]
+        req.efficiency = dim["efficiency"]
+        req.security = dim["security"]
+        req.skills = dim["skills"]
+        req.ux = dim["ux"]
+
+        total_scores = [tr.score for tr in valid_results]
+        req.overall = round(sum(total_scores) / len(total_scores) * 100, 2)
+        req.tasksCompleted = len(valid_results)
+
+    elif req.rawSummary and req.overall > 0 and req.taskCompletion == 0:
         req.taskCompletion = req.overall
-        req.efficiency = req.overall * 0.85
-        req.security = req.overall * 0.80
-        req.skills = req.overall * 0.75
-        req.ux = req.overall * 0.80
+        req.efficiency = req.overall * 0.90
+        req.security = req.overall * 0.85
+        req.skills = req.overall * 0.80
+        req.ux = req.overall * 0.85
 
     if req.framework in ("unknown", "") or req.overall <= 0:
         _log_submission(ip, fingerprint, {"framework": req.framework, "overall": req.overall}, "rejected", "Empty data")
@@ -366,6 +453,8 @@ async def submit_results(req: SubmissionRequest, request: Request):
         req.model = raw_model.rsplit("/", 1)[-1]
 
     data = req.model_dump(exclude={"fingerprint", "clawId", "customName", "rawSummary"})
+    if req.taskResults:
+        data["taskResults"] = [{"taskId": tr.taskId, "passed": tr.passed, "score": round(tr.score, 4)} for tr in req.taskResults if tr.taskId in VALID_TASK_IDS]
     claw_id = req.clawId
 
     rate_error = _check_rate_limits(ip, fingerprint)

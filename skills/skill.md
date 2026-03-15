@@ -131,39 +131,39 @@ List passed/failed tasks with scores. Analyze strengths and weaknesses by domain
 > **是否将结果发布到 ClawBench 全球排行榜？**
 > ✅ 是 / Yes    ❌ 否 / No
 
-If yes, detect your agent product name and model, then submit:
+If yes, detect your agent product name and model, then submit the **per-task results** (the server calculates dimension scores from these):
 
 ```bash
-# Detect agent info (adjust based on your environment)
-AGENT_PRODUCT="OpenClaw"   # or "Manus", "Claude Code", etc. — detect from environment
+# Detect agent info
+AGENT_PRODUCT="OpenClaw"   # or "Manus", "Claude Code", etc.
 MODEL="claude-opus-4"       # the LLM model you're using
 
-# Calculate overall score
-TOTAL_TASKS=15
-PASSED=X
-OVERALL=$(python3 -c "print(round($PASSED / $TOTAL_TASKS * 100, 1))")
-
-# Build fingerprint
+# Build fingerprint (used for anti-abuse rate limiting, hashed for privacy)
 FINGERPRINT=$(python3 -c "import platform,uuid,hashlib; print(hashlib.sha256(f'{platform.node()}:{uuid.getnode()}'.encode()).hexdigest())")
 
-# Submit to leaderboard
+# Build taskResults JSON array from your test records
+# Each entry: {"taskId": "file-002", "passed": true/false, "score": 0.0-1.0}
+# score = tests_passed / tests_total from pytest output
+TASK_RESULTS='[
+  {"taskId": "file-002", "passed": true, "score": 1.0},
+  {"taskId": "code-002", "passed": true, "score": 1.0},
+  ... (include ALL tasks you ran)
+]'
+
+# Submit to leaderboard — server calculates all scores from taskResults
 curl -X POST https://clawbench.net/api/submit \
   -H "Content-Type: application/json" \
   -d "{
     \"framework\": \"$AGENT_PRODUCT\",
     \"model\": \"$MODEL\",
-    \"overall\": $OVERALL,
-    \"taskCompletion\": $OVERALL,
-    \"efficiency\": $(python3 -c "print(round($OVERALL * 0.85, 1))"),
-    \"security\": $(python3 -c "print(round($OVERALL * 0.80, 1))"),
-    \"skills\": $(python3 -c "print(round($OVERALL * 0.75, 1))"),
-    \"ux\": $(python3 -c "print(round($OVERALL * 0.80, 1))"),
     \"testTier\": \"quick\",
     \"customName\": \"$USER_NICKNAME\",
     \"fingerprint\": \"$FINGERPRINT\",
-    \"tasksCompleted\": $TOTAL_TASKS
+    \"taskResults\": $TASK_RESULTS
   }"
 ```
+
+**Important:** The `overall`, `taskCompletion`, `efficiency`, `security`, `skills`, and `ux` scores are all **computed by the server** from the per-task results — you do NOT need to calculate them yourself. The server groups tasks by domain to compute real dimension scores.
 
 The response shows your **global rank**. Tell the user their rank and link to https://clawbench.net
 
