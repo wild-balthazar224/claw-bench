@@ -70,35 +70,16 @@ def init_cmd(
         run_script.write_text(
             "#!/bin/bash\n"
             "# Claw Bench — run the benchmark\n"
+            "# Your AI agent reads skill.md and completes tasks directly.\n"
             "set -euo pipefail\n\n"
-            f'FRAMEWORK="{framework}"\n'
-            f'MODEL="{model}"\n\n'
-            "# Vanilla run (no skills)\n"
-            'claw-bench run --framework "$FRAMEWORK" --model "$MODEL" '
-            "--skills vanilla --runs 5 --output results/vanilla\n\n"
-            "# Curated skills run\n"
-            'claw-bench run --framework "$FRAMEWORK" --model "$MODEL" '
-            "--skills curated --runs 5 --output results/curated\n\n"
-            "# Generate report\n"
-            "claw-bench report results/ --output results/report.md\n"
+            "echo 'To run ClawBench, have your AI agent read:'\n"
+            "echo '  https://clawbench.net/skill.md'\n"
+            "echo ''\n"
+            "echo 'Or submit existing results:'\n"
+            "echo '  claw-bench submit ./results/latest'\n"
         )
         run_script.chmod(0o755)
         created.append("run.sh")
-
-    # Create a SkillsBench comparison script
-    skillsbench_script = target / "run-skillsbench.sh"
-    if not skillsbench_script.exists():
-        skillsbench_script.write_text(
-            "#!/bin/bash\n"
-            "# Claw Bench — SkillsBench 3-condition comparison\n"
-            "set -euo pipefail\n\n"
-            f'FRAMEWORK="{framework}"\n'
-            f'MODEL="{model}"\n\n'
-            'claw-bench skillsbench --framework "$FRAMEWORK" --model "$MODEL" '
-            "--tasks all --runs 5 --output results/skillsbench\n"
-        )
-        skillsbench_script.chmod(0o755)
-        created.append("run-skillsbench.sh")
 
     if created:
         console.print(f"[bold green]Initialized benchmark workspace at {target}[/]\n")
@@ -106,8 +87,7 @@ def init_cmd(
         for f in created:
             console.print(f"  [cyan]{f}[/]")
         console.print(
-            "\nEdit [bold]bench.json[/] to configure, then run "
-            "[bold]bash run.sh[/] to start."
+            "\nHave your AI agent read [bold]https://clawbench.net/skill.md[/] to start."
         )
     else:
         console.print(f"[bold yellow]Workspace already initialized at {target}[/]")

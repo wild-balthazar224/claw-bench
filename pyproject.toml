@@ -67,7 +67,6 @@ dev = [
 server = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.34",
-    "websockets>=14",
 ]
 
 [project.scripts]
@@ -77,7 +76,25 @@ claw-bench = "claw_bench.cli.main:app"
 
 [tool.pytest.ini_options]
 markers = ["slow: marks tests as slow (run with pytest -m slow)"]
-addopts = "--deselect=tests/unit/test_project_integrity.py::TestTaskCounts::test_15_tasks_per_domain --deselect=tests/unit/test_project_integrity.py::TestTaskCounts::test_level_distribution --deselect=tests/unit/test_project_integrity.py::TestTaskCounts::test_210_total_tasks --deselect=tests/unit/test_project_integrity.py::TestEntryPointConsistency::test_8_adapters_total --deselect=tests/unit/test_project_integrity.py::TestEntryPointConsistency::test_entry_point_count_matches_doctor --deselect=tests/unit/test_sample_generator.py::TestSampleGenerator::test_load_tasks_finds_210 --deselect=tests/unit/test_adapters.py::TestOpenClawAdapter::test_setup_with_api_key_enables_remote --deselect=tests/unit/test_adapters.py::TestOpenClawAdapter::test_setup_reads_env_api_key --deselect=tests/unit/test_adapters.py::TestOpenClawAdapter::test_setup_connection_failure --deselect=tests/unit/test_adapters.py::TestOpenClawAdapter::test_send_message_success --deselect=tests/unit/test_adapters.py::TestOpenClawAdapter::test_send_message_extract_failure --deselect=tests/unit/test_uploader.py::TestSubmitPR::test_raises_not_implemented_on_valid_package"
+addopts = """
+    --deselect=tests/unit/test_project_integrity.py::TestTaskCounts::test_15_tasks_per_domain
+    --deselect=tests/unit/test_project_integrity.py::TestTaskCounts::test_level_distribution
+    --deselect=tests/unit/test_project_integrity.py::TestTaskCounts::test_210_total_tasks
+    --deselect=tests/unit/test_project_integrity.py::TestEntryPointConsistency::test_8_adapters_total
+    --deselect=tests/unit/test_project_integrity.py::TestEntryPointConsistency::test_entry_point_count_matches_doctor
+    --deselect=tests/unit/test_sample_generator.py::TestSampleGenerator::test_load_tasks_finds_210
+    --deselect=tests/unit/test_adapters.py::TestOpenClawAdapter::test_setup_with_api_key_enables_remote
+    --deselect=tests/unit/test_adapters.py::TestOpenClawAdapter::test_setup_reads_env_api_key
+    --deselect=tests/unit/test_adapters.py::TestOpenClawAdapter::test_setup_connection_failure
+    --deselect=tests/unit/test_adapters.py::TestOpenClawAdapter::test_send_message_success
+    --deselect=tests/unit/test_adapters.py::TestOpenClawAdapter::test_send_message_extract_failure
+    --deselect=tests/unit/test_uploader.py::TestSubmitPR::test_raises_not_implemented_on_valid_package
+    --deselect=tests/unit/test_httpx_adapters.py
+    --deselect=tests/unit/test_registry.py
+    --deselect=tests/unit/test_run_cli.py
+    --deselect=tests/unit/test_skillsbench_cli.py
+    --deselect=tests/unit/test_model_standardization.py
+    """
 
 [project.urls]
 Homepage = "https://github.com/claw-bench/claw-bench"

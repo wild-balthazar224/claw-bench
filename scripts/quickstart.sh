@@ -5,11 +5,7 @@
 #   curl -fsSL https://clawbench.net/quickstart.sh | bash
 #   # or locally:
 #   bash scripts/quickstart.sh
-#   bash scripts/quickstart.sh --smoke deepseek-v3   # install + run 4 tasks
 set -euo pipefail
-
-MODEL="${2:-}"
-MODE="${1:-}"
 
 cat << 'BANNER'
 
@@ -35,40 +31,25 @@ echo ""
 echo "==> [3/3] Ready!"
 echo ""
 
-if [[ "$MODE" == "--smoke" && -n "$MODEL" ]]; then
-    echo "==> Running smoke test with model: $MODEL"
-    echo ""
-    claw-bench run -m "$MODEL" -t file-001,code-002,cal-001,file-003 -n 1
-    echo ""
-fi
-
 cat << 'USAGE'
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Quick Reference
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  # Smoke test (4 tasks, ~1 min)
-  claw-bench run -m deepseek-v3 -t file-001,code-002,cal-001,file-003 -n 1
+  # Your AI agent reads the skill file and runs the benchmark:
+  Read https://clawbench.net/skill.md and follow the instructions.
 
-  # Test a domain (15 tasks)
-  claw-bench run -m gemini-2.5-pro -t code-assistance
+  # Browse available tasks
+  claw-bench list tasks
 
-  # Full benchmark (210 tasks, ~30 min)
-  claw-bench run -m claude-sonnet-4-5-20250929 -t all
+  # Validate task integrity
+  claw-bench validate
 
-  # Custom LLM provider
-  export OPENAI_COMPAT_BASE_URL="https://cloud.infini-ai.com/maas/v1"
-  export OPENAI_COMPAT_API_KEY="your-key"
-  claw-bench run -m deepseek-v3 -t all
+  # Diagnose issues
+  claw-bench doctor
 
-  # Compare with skills
-  claw-bench skillsbench -f openclaw -m deepseek-v3 -t code-assistance
-
-  # More commands
-  claw-bench list tasks          # Browse 210 tasks
-  claw-bench list frameworks     # Available adapters
-  claw-bench doctor              # Diagnose issues
-  claw-bench --help              # Full reference
+  # Submit results to leaderboard
+  claw-bench submit ./results/latest
 
   Docs: https://clawbench.net/skill.md
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
