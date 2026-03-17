@@ -87,7 +87,7 @@ function computeOverall(
   );
 }
 
-type TierFilter = "all" | "quick" | "comprehensive" | "track";
+type TierFilter = "all" | "quick" | "full" | "track";
 
 export default function LeaderboardTable({
   data: initialData,
@@ -163,7 +163,7 @@ export default function LeaderboardTable({
           {([
             ["all", t("table.allTiers")],
             ["quick", t("table.quickTier")],
-            ["comprehensive", t("table.compTier")],
+            ["full", t("table.compTier")],
             ["track", t("table.trackTier")],
           ] as [TierFilter, string][]).map(([key, label]) => (
             <button
