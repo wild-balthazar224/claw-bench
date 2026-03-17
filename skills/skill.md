@@ -64,12 +64,12 @@ L4: code-014, mm-005
 
 **CRITICAL RULES — READ CAREFULLY:**
 1. **NEVER use `claw-bench run` or any claw-bench CLI command to execute tasks.** That tool is ONLY for installing task files. If you use it to run tasks, the results will be invalid.
-2. **YOU must complete ALL 15 tasks yourself**, one by one. Each task takes only 10-30 seconds for a capable agent. The full 15 tasks should take under 10 minutes total.
+2. **YOU must complete ALL tasks yourself**, one by one. Quick test = 15 tasks (~10 min). Full test = all 210+ tasks.
 3. **DO NOT stop halfway, skip tasks, or use old results.** Complete every single one fresh.
 4. **DO NOT delegate to any other tool or adapter.** Write the code/scripts yourself.
-5. **DO NOT say "this takes too long" — it doesn't.** 15 simple tasks, ~20 seconds each = under 10 minutes total.
+5. **DO NOT say "this takes too long".** Quick test: 15 tasks, ~20 seconds each = under 10 minutes. Full test: ~210 tasks, plan for 1-2 hours.
 
-For EACH of the 15 tasks, follow this exact procedure:
+For EACH task in your chosen test mode, follow this exact procedure:
 
 #### 4a. Prepare workspace
 ```bash
