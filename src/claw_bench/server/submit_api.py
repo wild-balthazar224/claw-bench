@@ -670,10 +670,11 @@ async def submit_results(req: SubmissionRequest, request: Request):
         _log_submission(ip, fingerprint, data, "rejected", rate_error)
         raise HTTPException(429, rate_error)
 
-    consistency_error = _validate_score_consistency(data)
-    if consistency_error:
-        _log_submission(ip, fingerprint, data, "rejected", consistency_error)
-        raise HTTPException(422, consistency_error)
+    if not req.taskResults and not req.rawSummary:
+        consistency_error = _validate_score_consistency(data)
+        if consistency_error:
+            _log_submission(ip, fingerprint, data, "rejected", consistency_error)
+            raise HTTPException(422, consistency_error)
 
     country_code, country_name = await lookup_ip(ip)
     flag = get_flag(country_code)

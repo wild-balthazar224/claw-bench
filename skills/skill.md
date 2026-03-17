@@ -137,6 +137,7 @@ If yes, detect your agent product name and model, then submit the **per-task res
 # Detect agent info
 AGENT_PRODUCT="OpenClaw"   # or "Manus", "Claude Code", etc.
 MODEL="claude-opus-4"       # the LLM model you're using
+TEST_TIER="quick"           # "quick" for 15 tasks, "full" for all 210+ tasks
 
 # Build fingerprint (used for anti-abuse rate limiting, hashed for privacy)
 FINGERPRINT=$(python3 -c "import platform,uuid,hashlib; print(hashlib.sha256(f'{platform.node()}:{uuid.getnode()}'.encode()).hexdigest())")
@@ -156,7 +157,7 @@ curl -X POST https://clawbench.net/api/submit \
   -d "{
     \"framework\": \"$AGENT_PRODUCT\",
     \"model\": \"$MODEL\",
-    \"testTier\": \"quick\",
+    \"testTier\": \"$TEST_TIER\",
     \"customName\": \"$USER_NICKNAME\",
     \"fingerprint\": \"$FINGERPRINT\",
     \"taskResults\": $TASK_RESULTS

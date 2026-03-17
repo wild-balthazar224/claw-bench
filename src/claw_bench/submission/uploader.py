@@ -207,11 +207,25 @@ def submit_api(results_dir: Path, server_url: str = "https://clawbench.net", cla
     if custom_name:
         payload["customName"] = custom_name
 
+    raw_task_results = data.get("task_results", data.get("taskDetails", []))
+    if raw_task_results:
+        task_items = []
+        for tr in raw_task_results:
+            tid = tr.get("task_id", tr.get("taskId", ""))
+            passed = tr.get("passed", False)
+            score = tr.get("score", 1.0 if passed else 0.0)
+            if tid:
+                task_items.append({"taskId": tid, "passed": bool(passed), "score": float(score)})
+        if task_items:
+            payload["taskResults"] = task_items
+
+    payload["rawSummary"] = data
+
     metadata = data.get("metadata", {})
     total_tokens_in = metadata.get("total_tokens_input", 0)
     total_tokens_out = metadata.get("total_tokens_output", 0)
     if not total_tokens_in:
-        for tr in data.get("task_results", data.get("taskDetails", [])):
+        for tr in raw_task_results:
             total_tokens_in += tr.get("tokens_input", tr.get("tokensInput", 0)) or 0
             total_tokens_out += tr.get("tokens_output", tr.get("tokensOutput", 0)) or 0
     if total_tokens_in or total_tokens_out:
