@@ -55,6 +55,52 @@ interface MoltBookAgent {
   runs: { date: string; tier: string; overall: number; passRate: number }[];
 }
 
+interface Proposal {
+  _proposalId: string;
+  _submittedAt: string;
+  _status: string;
+  _generatedTaskId?: string;
+  domain: string;
+  taskTitle: string;
+  difficulty: string;
+  context: string;
+  instruction: string;
+  requiredActions: string[];
+  successCriteria: string;
+  dataRequirements?: string;
+  expertName?: string;
+  expertEmail?: string;
+}
+
+interface GeneratedTaskSummary {
+  _id: string;
+  taskId: string;
+  taskDirName: string;
+  proposalId: string;
+  domain: string;
+  taskTitle: string;
+  difficulty: string;
+  status: string;
+  fileCount: number;
+  filePaths: string[];
+  generatedAt: string;
+  error?: string | null;
+}
+
+interface GeneratedTaskDetail {
+  _id: string;
+  taskId: string;
+  taskDirName: string;
+  proposalId: string;
+  domain: string;
+  taskTitle: string;
+  difficulty: string;
+  status: string;
+  files: Record<string, string>;
+  generatedAt: string;
+  error?: string | null;
+}
+
 const emptyResult: Result = {
   framework: "", model: "", overall: 0, taskCompletion: 0, efficiency: 0,
   security: 0, skills: 0, ux: 0, testTier: "comprehensive",
@@ -66,7 +112,7 @@ const emptySkillsGain: SkillsGainEntry = { framework: "", model: "", vanilla: 0,
 
 const emptyAgent: MoltBookAgent = { clawId: "", displayName: "", framework: "", model: "", submitter: "", modelTier: "flagship", runs: [] };
 
-type Tab = "pending" | "results" | "skills" | "moltbook" | "config";
+type Tab = "pending" | "results" | "skills" | "moltbook" | "config" | "proposals" | "generated";
 
 /* ── Components ─────────────────────────────────────────────────── */
 
@@ -81,12 +127,13 @@ const Field = ({ label, value, onChange, type = "text", half = false }: {
 );
 
 const Btn = ({ children, onClick, variant = "primary", disabled = false }: {
-  children: React.ReactNode; onClick: () => void; variant?: "primary" | "secondary" | "danger"; disabled?: boolean;
+  children: React.ReactNode; onClick: () => void; variant?: "primary" | "secondary" | "danger" | "success"; disabled?: boolean;
 }) => {
   const styles: Record<string, React.CSSProperties> = {
     primary: { background: "var(--accent)", color: "#fff", border: "none" },
     secondary: { background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border)" },
     danger: { background: "transparent", color: "var(--danger)", border: "1px solid var(--danger)" },
+    success: { background: "#22c55e", color: "#fff", border: "none" },
   };
   return (
     <button onClick={onClick} disabled={disabled}
@@ -96,13 +143,34 @@ const Btn = ({ children, onClick, variant = "primary", disabled = false }: {
   );
 };
 
+const StatusBadge = ({ status }: { status: string }) => {
+  const colors: Record<string, { bg: string; text: string }> = {
+    pending: { bg: "rgba(234, 179, 8, 0.15)", text: "#ca8a04" },
+    generating: { bg: "rgba(59, 130, 246, 0.15)", text: "#2563eb" },
+    generated: { bg: "rgba(34, 197, 94, 0.15)", text: "#16a34a" },
+    ready: { bg: "rgba(34, 197, 94, 0.15)", text: "#16a34a" },
+    approved: { bg: "rgba(34, 197, 94, 0.25)", text: "#15803d" },
+    rejected: { bg: "rgba(239, 68, 68, 0.15)", text: "#dc2626" },
+    error: { bg: "rgba(239, 68, 68, 0.15)", text: "#dc2626" },
+  };
+  const c = colors[status] || colors.pending;
+  return (
+    <span style={{
+      display: "inline-block", padding: "0.15rem 0.55rem", borderRadius: "12px",
+      fontSize: "0.72rem", fontWeight: 600, background: c.bg, color: c.text,
+    }}>
+      {status.toUpperCase()}
+    </span>
+  );
+};
+
 /* ── Main ───────────────────────────────────────────────────────── */
 
 export default function AdminPage() {
   const [token, setToken] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [activeTab, setActiveTab] = useState<Tab>("pending");
+  const [activeTab, setActiveTab] = useState<Tab>("proposals");
   const [message, setMessage] = useState("");
   const [rebuilding, setRebuilding] = useState(false);
 
@@ -129,8 +197,19 @@ export default function AdminPage() {
   const [configModels, setConfigModels] = useState("");
   const [configCapabilities, setConfigCapabilities] = useState("");
 
+  // Proposals state
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [expandedProposal, setExpandedProposal] = useState<string | null>(null);
+  const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+
+  // Generated tasks state
+  const [generatedTasks, setGeneratedTasks] = useState<GeneratedTaskSummary[]>([]);
+  const [reviewingTask, setReviewingTask] = useState<GeneratedTaskDetail | null>(null);
+  const [editingFiles, setEditingFiles] = useState<Record<string, string>>({});
+  const [activeFileTab, setActiveFileTab] = useState<string>("");
+
   const headers = useCallback(() => ({ Authorization: `Bearer ${token}`, "Content-Type": "application/json" }), [token]);
-  const showMsg = (m: string) => { setMessage(m); setTimeout(() => setMessage(""), 3000); };
+  const showMsg = (m: string) => { setMessage(m); setTimeout(() => setMessage(""), 4000); };
 
   // Auth
   const login = async () => {
@@ -165,7 +244,28 @@ export default function AdminPage() {
     }
   }, [token, headers]);
 
-  useEffect(() => { if (token) { loadPending(); loadResults(); loadSkillsGain(); loadAgents(); loadConfig(); } }, [token, loadPending, loadResults, loadSkillsGain, loadAgents, loadConfig]);
+  const loadProposals = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch(`${API}/expert-proposals`, { headers: headers() });
+      if (r.ok) setProposals(await r.json());
+    } catch {}
+  }, [token, headers]);
+
+  const loadGeneratedTasks = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch(`${API}/generated-tasks`, { headers: headers() });
+      if (r.ok) setGeneratedTasks(await r.json());
+    } catch {}
+  }, [token, headers]);
+
+  useEffect(() => {
+    if (token) {
+      loadPending(); loadResults(); loadSkillsGain(); loadAgents(); loadConfig();
+      loadProposals(); loadGeneratedTasks();
+    }
+  }, [token, loadPending, loadResults, loadSkillsGain, loadAgents, loadConfig, loadProposals, loadGeneratedTasks]);
 
   // Result CRUD
   const saveResult = async () => {
@@ -229,6 +329,111 @@ export default function AdminPage() {
     setRebuilding(false);
   };
 
+  // ── Proposal actions ──
+  const triggerGenerate = async (proposalId: string) => {
+    setGeneratingIds(prev => new Set(prev).add(proposalId));
+    try {
+      const r = await fetch(`${API}/generate-task`, {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ proposalId }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        showMsg(`任务生成已启动 (ID: ${data.generatedTaskId})，请在「生成任务」标签页查看进度`);
+        loadProposals();
+        // Poll for completion
+        const pollId = setInterval(async () => {
+          await loadGeneratedTasks();
+          try {
+            const check = await fetch(`${API}/generated-tasks/${data.generatedTaskId}`, { headers: headers() });
+            if (check.ok) {
+              const detail = await check.json();
+              if (detail.status !== "generating") {
+                clearInterval(pollId);
+                setGeneratingIds(prev => { const n = new Set(prev); n.delete(proposalId); return n; });
+                loadProposals();
+                loadGeneratedTasks();
+                if (detail.status === "ready") {
+                  showMsg(`任务 ${detail.taskId} 生成完成，请前往「生成任务」标签页审核`);
+                } else if (detail.status === "error") {
+                  showMsg(`任务生成失败: ${detail.error}`);
+                }
+              }
+            }
+          } catch {}
+        }, 3000);
+        // Safety timeout: stop polling after 5 minutes
+        setTimeout(() => {
+          clearInterval(pollId);
+          setGeneratingIds(prev => { const n = new Set(prev); n.delete(proposalId); return n; });
+        }, 300000);
+      } else {
+        const err = await r.json().catch(() => ({}));
+        showMsg(`生成失败: ${err.detail || r.status}`);
+        setGeneratingIds(prev => { const n = new Set(prev); n.delete(proposalId); return n; });
+      }
+    } catch {
+      showMsg("生成请求失败");
+      setGeneratingIds(prev => { const n = new Set(prev); n.delete(proposalId); return n; });
+    }
+  };
+
+  const deleteProposal = async (proposalId: string) => {
+    if (!confirm("确定删除此提案？")) return;
+    const r = await fetch(`${API}/expert-proposals/${proposalId}`, { method: "DELETE", headers: headers() });
+    if (r.ok) { showMsg("已删除"); loadProposals(); } else showMsg("删除失败");
+  };
+
+  // ── Generated task actions ──
+  const openReview = async (genId: string) => {
+    try {
+      const r = await fetch(`${API}/generated-tasks/${genId}`, { headers: headers() });
+      if (r.ok) {
+        const detail: GeneratedTaskDetail = await r.json();
+        setReviewingTask(detail);
+        setEditingFiles({ ...detail.files });
+        const firstFile = Object.keys(detail.files)[0] || "";
+        setActiveFileTab(firstFile);
+      } else showMsg("加载失败");
+    } catch { showMsg("加载失败"); }
+  };
+
+  const approveTask = async () => {
+    if (!reviewingTask) return;
+    const r = await fetch(`${API}/generated-tasks/${reviewingTask._id}/approve`, {
+      method: "POST", headers: headers(),
+      body: JSON.stringify({ files: editingFiles }),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      showMsg(`任务 ${data.taskId} 已批准，${data.filesWritten?.length || 0} 个文件已写入 tasks/ 目录`);
+      setReviewingTask(null);
+      loadGeneratedTasks();
+      loadProposals();
+    } else showMsg("批准失败");
+  };
+
+  const rejectTask = async (genId: string) => {
+    if (!confirm("确定拒绝此生成任务？")) return;
+    const r = await fetch(`${API}/generated-tasks/${genId}/reject`, { method: "POST", headers: headers() });
+    if (r.ok) { showMsg("已拒绝"); setReviewingTask(null); loadGeneratedTasks(); loadProposals(); } else showMsg("操作失败");
+  };
+
+  const regenerateTask = async (genId: string) => {
+    const r = await fetch(`${API}/generated-tasks/${genId}/regenerate`, { method: "POST", headers: headers() });
+    if (r.ok) {
+      showMsg("重新生成已启动");
+      setReviewingTask(null);
+      loadGeneratedTasks();
+    } else showMsg("操作失败");
+  };
+
+  const deleteGeneratedTask = async (genId: string) => {
+    if (!confirm("确定删除？")) return;
+    const r = await fetch(`${API}/generated-tasks/${genId}`, { method: "DELETE", headers: headers() });
+    if (r.ok) { showMsg("已删除"); setReviewingTask(null); loadGeneratedTasks(); } else showMsg("删除失败");
+  };
+
   // ── Login ──
   if (!token) return (
     <div style={{ maxWidth: 360, margin: "6rem auto", textAlign: "center" }}>
@@ -248,7 +453,7 @@ export default function AdminPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <div>
           <h1 style={{ fontSize: "1.4rem", fontWeight: 600, letterSpacing: "-0.02em" }}>Admin Console</h1>
-          <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>管理排行榜全部数据 · 修改后点击「重建前端」生效</p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>管理排行榜数据、专家提案与任务生成</p>
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <Btn onClick={triggerRebuild} disabled={rebuilding}>{rebuilding ? "重建中..." : "重建前端"}</Btn>
@@ -259,14 +464,218 @@ export default function AdminPage() {
       {message && <div style={{ padding: "0.6rem 1rem", background: "var(--accent-light)", border: "1px solid var(--accent)", borderRadius: "6px", marginBottom: "1rem", fontSize: "0.82rem", color: "var(--accent)", fontWeight: 500 }}>{message}</div>}
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: "0.4rem", marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
-        {([["pending", `待审核 (${pending.length})`], ["results", "排行榜数据"], ["skills", "技能增益"], ["moltbook", "身份册"], ["config", "配置管理"]] as [Tab, string][]).map(([key, label]) => (
+      <div style={{ display: "flex", gap: "0.4rem", marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem", flexWrap: "wrap" }}>
+        {([
+          ["proposals", `专家提案 (${proposals.length})`],
+          ["generated", `生成任务 (${generatedTasks.length})`],
+          ["pending", `待审核 (${pending.length})`],
+          ["results", "排行榜数据"],
+          ["skills", "技能增益"],
+          ["moltbook", "身份册"],
+          ["config", "配置管理"],
+        ] as [Tab, string][]).map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
             style={{ padding: "0.4rem 1rem", border: "none", borderRadius: "6px", background: activeTab === key ? "var(--accent)" : "transparent", color: activeTab === key ? "#fff" : "var(--text-secondary)", fontWeight: 500, fontSize: "0.82rem", cursor: "pointer" }}>
             {label}
           </button>
         ))}
       </div>
+
+      {/* ── Proposals Tab ── */}
+      {activeTab === "proposals" && (<>
+        <div style={{ marginBottom: "1rem", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+          {proposals.length > 0
+            ? `${proposals.length} 条专家提案 — 点击「生成任务」调用 LLM 自动构建完整任务文件`
+            : "暂无专家提案。专家可通过 /expert-submit 页面提交任务提案。"}
+        </div>
+        {proposals.map((p) => {
+          const isExpanded = expandedProposal === p._proposalId;
+          const isGenerating = generatingIds.has(p._proposalId);
+          return (
+            <div key={p._proposalId} className="card" style={{ marginBottom: "1rem", padding: "1.2rem" }}>
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.3rem" }}>
+                    <span style={{ fontWeight: 600, fontSize: "0.95rem" }}>{p.taskTitle}</span>
+                    <StatusBadge status={p._status} />
+                    <code style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "var(--bg-secondary)", borderRadius: "4px" }}>{p.difficulty}</code>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
+                    {p.domain} · {p.expertName || "匿名"} · {(p._submittedAt || "").split("T")[0]}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
+                  <Btn onClick={() => setExpandedProposal(isExpanded ? null : p._proposalId)} variant="secondary">
+                    {isExpanded ? "收起" : "详情"}
+                  </Btn>
+                  {(p._status === "pending" || p._status === "rejected" || p._status === "error") && (
+                    <Btn onClick={() => triggerGenerate(p._proposalId)} disabled={isGenerating}>
+                      {isGenerating ? "生成中..." : "生成任务"}
+                    </Btn>
+                  )}
+                  {p._status === "generated" && p._generatedTaskId && (
+                    <Btn onClick={() => { setActiveTab("generated"); openReview(p._generatedTaskId!); }} variant="success">
+                      查看生成结果
+                    </Btn>
+                  )}
+                  <Btn onClick={() => deleteProposal(p._proposalId)} variant="danger">删除</Btn>
+                </div>
+              </div>
+
+              {/* Expanded detail */}
+              {isExpanded && (
+                <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.75rem", fontSize: "0.82rem", lineHeight: 1.7 }}>
+                  <div style={{ marginBottom: "0.6rem" }}>
+                    <strong>真实场景：</strong>
+                    <div style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{p.context}</div>
+                  </div>
+                  <div style={{ marginBottom: "0.6rem" }}>
+                    <strong>Agent 指令：</strong>
+                    <div style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{p.instruction}</div>
+                  </div>
+                  <div style={{ marginBottom: "0.6rem" }}>
+                    <strong>必需操作：</strong>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem", marginTop: "0.3rem" }}>
+                      {p.requiredActions.map((a) => (
+                        <span key={a} style={{ padding: "0.15rem 0.5rem", background: "var(--accent-light)", color: "var(--accent)", borderRadius: "12px", fontSize: "0.72rem", fontWeight: 500 }}>
+                          {a}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: "0.6rem" }}>
+                    <strong>成功标准：</strong>
+                    <div style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{p.successCriteria}</div>
+                  </div>
+                  {p.dataRequirements && (
+                    <div style={{ marginBottom: "0.6rem" }}>
+                      <strong>数据需求：</strong>
+                      <div style={{ color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{p.dataRequirements}</div>
+                    </div>
+                  )}
+                  {p.expertEmail && (
+                    <div><strong>联系邮箱：</strong> <span style={{ color: "var(--text-secondary)" }}>{p.expertEmail}</span></div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </>)}
+
+      {/* ── Generated Tasks Tab ── */}
+      {activeTab === "generated" && (<>
+        {/* Review modal */}
+        {reviewingTask && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.6)", zIndex: 1000,
+            display: "flex", justifyContent: "center", alignItems: "center",
+            padding: "2rem",
+          }}>
+            <div style={{
+              background: "var(--bg-card)", borderRadius: "12px", width: "100%", maxWidth: "1100px",
+              maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden",
+              border: "1px solid var(--border)",
+            }}>
+              {/* Review header */}
+              <div style={{ padding: "1.2rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "0.2rem" }}>
+                    审核生成任务: {reviewingTask.taskId}
+                  </h2>
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-tertiary)" }}>
+                    {reviewingTask.domain} · {reviewingTask.difficulty} · {reviewingTask.taskTitle}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.4rem" }}>
+                  <Btn onClick={approveTask} variant="success">批准并写入</Btn>
+                  <Btn onClick={() => regenerateTask(reviewingTask._id)}>重新生成</Btn>
+                  <Btn onClick={() => rejectTask(reviewingTask._id)} variant="danger">拒绝</Btn>
+                  <Btn onClick={() => setReviewingTask(null)} variant="secondary">关闭</Btn>
+                </div>
+              </div>
+
+              {/* File tabs */}
+              <div style={{ display: "flex", borderBottom: "1px solid var(--border)", overflowX: "auto", flexShrink: 0 }}>
+                {Object.keys(editingFiles).map((path) => {
+                  const shortName = path.split("/").slice(-1)[0];
+                  const isActive = activeFileTab === path;
+                  return (
+                    <button key={path} onClick={() => setActiveFileTab(path)}
+                      style={{
+                        padding: "0.5rem 1rem", border: "none", borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
+                        background: "transparent", color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                        fontSize: "0.78rem", fontWeight: isActive ? 600 : 400, cursor: "pointer", whiteSpace: "nowrap",
+                        fontFamily: "var(--font-mono)",
+                      }}>
+                      {shortName}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* File editor */}
+              <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                <div style={{ padding: "0.5rem 1rem", fontSize: "0.72rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono)", background: "var(--bg-secondary)" }}>
+                  {activeFileTab}
+                </div>
+                <textarea
+                  value={editingFiles[activeFileTab] || ""}
+                  onChange={(e) => setEditingFiles(prev => ({ ...prev, [activeFileTab]: e.target.value }))}
+                  style={{
+                    flex: 1, width: "100%", padding: "1rem", border: "none",
+                    fontFamily: "var(--font-mono)", fontSize: "0.8rem",
+                    background: "var(--bg)", color: "var(--text)",
+                    resize: "none", lineHeight: 1.6, outline: "none",
+                  }}
+                  spellCheck={false}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginBottom: "1rem", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+          {generatedTasks.length > 0
+            ? `${generatedTasks.length} 个生成任务 — 点击「审核」查看和编辑生成的文件，确认后批准写入 tasks/ 目录`
+            : "暂无生成任务。请先在「专家提案」标签页中点击「生成任务」。"}
+        </div>
+        {generatedTasks.map((t) => (
+          <div key={t._id} className="card" style={{ marginBottom: "0.75rem", padding: "1rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.25rem" }}>
+                  <span style={{ fontWeight: 600, fontSize: "0.9rem", fontFamily: "var(--font-mono)" }}>{t.taskId || "(pending)"}</span>
+                  <StatusBadge status={t.status} />
+                  <code style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", background: "var(--bg-secondary)", borderRadius: "4px" }}>{t.difficulty}</code>
+                </div>
+                <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                  {t.taskTitle} · {t.domain} · {t.fileCount} files · {(t.generatedAt || "").split("T")[0]}
+                </div>
+                {t.error && (
+                  <div style={{ fontSize: "0.75rem", color: "var(--danger)", marginTop: "0.3rem" }}>
+                    Error: {t.error}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: "0.4rem" }}>
+                {t.status === "ready" && (
+                  <Btn onClick={() => openReview(t._id)} variant="success">审核</Btn>
+                )}
+                {(t.status === "error" || t.status === "rejected") && (
+                  <Btn onClick={() => regenerateTask(t._id)}>重新生成</Btn>
+                )}
+                {t.status === "generating" && (
+                  <Btn onClick={() => loadGeneratedTasks()} variant="secondary">刷新</Btn>
+                )}
+                <Btn onClick={() => deleteGeneratedTask(t._id)} variant="danger">删除</Btn>
+              </div>
+            </div>
+          </div>
+        ))}
+      </>)}
 
       {/* ── Pending Tab ── */}
       {activeTab === "pending" && (<>
@@ -282,7 +691,7 @@ export default function AdminPage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>
-                    {region.flag || "🌍"} {(profile.displayName as string) || `${p.framework} / ${p.model}`}
+                    {region.flag || ""} {(profile.displayName as string) || `${p.framework} / ${p.model}`}
                   </div>
                   <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
                     {String(p.clawId || "")} · {((p._submittedAt as string) || "").split("T")[0]} · IP: {String(p._submittedBy || "").slice(0, 12)}

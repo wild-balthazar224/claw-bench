@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from claw_bench.server.admin import router as admin_router
 from claw_bench.server.submit_api import router as submit_router
+from claw_bench.server.task_generator import router as task_gen_router
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ app.add_middleware(
 
 app.include_router(admin_router)
 app.include_router(submit_router)
+app.include_router(task_gen_router)
 
 # ── Data directory ───────────────────────────────────────────────────
 
