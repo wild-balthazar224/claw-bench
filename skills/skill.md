@@ -47,27 +47,27 @@ git clone --depth 1 https://github.com/claw-bench/claw-bench.git /tmp/claw-bench
 
 Ask the user:
 > **请选择测试模式 / Choose a test mode:**
-> 1. ⚡ **冒烟测试 / Quick Test** — 15 个任务，5-10 分钟
-> 2. 🏆 **完整测试 / Full Test** — 全部 210+ 任务，完整评测
+> 1. ⚡ **冒烟测试 / Quick Test** — 20 个任务，10-15 分钟
+> 2. 🏆 **完整测试 / Full Test** — 全部 247 任务，完整评测
 
-**Quick test tasks (15 tasks, balanced L1-L4):**
+**Quick test tasks (20 tasks, balanced L1-L4, covers 19 domains):**
 ```
-L1: file-002, code-002, eml-001, data-002
-L2: cal-006, doc-004, sys-004, comm-004, sec-004, wfl-003
-L3: web-006, mem-005, xdom-001
-L4: code-014, mm-005
+L1: file-002, code-002, eml-001, data-002, debug-001
+L2: cal-006, doc-004, sys-004, sec-004, wfl-003, db-002, tool-002
+L3: web-006, mem-005, xdom-001, plan-004, math-004
+L4: code-014, debug-005, tool-005
 ```
 
-**Full test:** All task directories under `tasks/`.
+**Full test:** All task directories under `tasks/` (19 domains, 247 tasks).
 
 ### Step 4: Execute each task
 
 **CRITICAL RULES — READ CAREFULLY:**
 1. **NEVER use `claw-bench run` or any claw-bench CLI command to execute tasks.** That tool is ONLY for installing task files. If you use it to run tasks, the results will be invalid.
-2. **YOU must complete ALL tasks yourself**, one by one. Quick test = 15 tasks (~10 min). Full test = all 210+ tasks.
+2. **YOU must complete ALL tasks yourself**, one by one. Quick test = 20 tasks (~15 min). Full test = all 247 tasks.
 3. **DO NOT stop halfway, skip tasks, or use old results.** Complete every single one fresh.
 4. **DO NOT delegate to any other tool or adapter.** Write the code/scripts yourself.
-5. **DO NOT say "this takes too long".** Quick test: 15 tasks, ~20 seconds each = under 10 minutes. Full test: ~210 tasks, plan for 1-2 hours.
+5. **DO NOT say "this takes too long".** Quick test: 20 tasks, ~30 seconds each = under 15 minutes. Full test: ~247 tasks, plan for 1-2 hours.
 
 For EACH task in your chosen test mode, follow this exact procedure:
 
@@ -201,17 +201,22 @@ tasks/{domain}/{task-id}/
 | code-002 | L1 | tasks/code-assistance/code-002-implement-palindrome |
 | eml-001 | L1 | tasks/email/eml-001-parse-email-headers |
 | data-002 | L1 | tasks/data-analysis/data-002 |
+| debug-001 | L1 | tasks/debugging/debug-001 |
 | cal-006 | L2 | tasks/calendar/cal-006-create-recurring-meeting |
 | doc-004 | L2 | tasks/document-editing/doc-004-find-replace-patterns |
 | sys-004 | L2 | tasks/system-admin/sys-004-log-analysis |
-| comm-004 | L2 | tasks/communication/comm-004-chat-analysis |
 | sec-004 | L2 | tasks/security/sec-004-sql-injection-detection |
 | wfl-003 | L2 | tasks/workflow-automation/wfl-003-multi-step-pipeline |
+| db-002 | L2 | tasks/database/db-002 |
+| tool-002 | L2 | tasks/real-tools/tool-002 |
 | web-006 | L3 | tasks/web-browsing/web-006-accessibility-audit |
 | mem-005 | L3 | tasks/memory/mem-005-long-doc-summarization |
 | xdom-001 | L3 | tasks/cross-domain/xdom-001-email-to-calendar |
+| plan-004 | L3 | tasks/planning/plan-004 |
+| math-004 | L3 | tasks/math-reasoning/math-004 |
 | code-014 | L4 | tasks/code-assistance/code-014-multi-file-refactoring |
-| mm-005 | L3 | tasks/multimodal/mm-005-multi-format-pipeline |
+| debug-005 | L4 | tasks/debugging/debug-005 |
+| tool-005 | L4 | tasks/real-tools/tool-005 |
 
 ## Need Help?
 

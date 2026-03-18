@@ -23,25 +23,30 @@ TIER_DEFAULTS: dict[str, dict] = {
 }
 
 QUICK_TASK_IDS = [
-    # L1 Easy (4 tasks) — baseline: any competent agent should pass
-    "file-002",   # file-operations: CSV to JSON (8 checks)
-    "code-002",   # code-assistance: palindrome checker (5 checks)
-    "eml-001",    # email: parse headers (4 checks)
-    "data-002",   # data-analysis: sort/filter CSV (6 checks)
-    # L2 Medium (6 tasks) — standard agent tasks
-    "cal-006",    # calendar: recurring meeting (4 checks)
-    "doc-004",    # document-editing: find-replace patterns (11 checks)
-    "sys-004",    # system-admin: log analysis (15 checks)
-    "comm-004",   # communication: chat analysis (10 checks)
-    "sec-004",    # security: SQL injection detection (8 checks)
-    "wfl-003",    # workflow: multi-step pipeline (11 checks)
-    # L3 Hard (3 tasks) — challenges for strong agents
-    "web-006",    # web-browsing: accessibility audit (13 checks)
-    "mem-005",    # memory: long doc summarization (18 checks)
-    "xdom-001",   # cross-domain: email to calendar (10 checks)
-    # L4 Expert (2 tasks) — only the best agents pass
-    "code-014",   # code-assistance: multi-file refactoring (varies)
-    "mm-005",     # multimodal: multi-format data pipeline (15 checks)
+    # L1 Easy (5 tasks) — baseline: any competent agent should pass
+    "file-002",    # file-operations: CSV to JSON
+    "code-002",    # code-assistance: palindrome checker
+    "eml-001",     # email: parse headers
+    "data-002",    # data-analysis: sort/filter CSV
+    "debug-001",   # debugging: fix syntax errors [NEW]
+    # L2 Medium (7 tasks) — standard agent tasks
+    "cal-006",     # calendar: recurring meeting
+    "doc-004",     # document-editing: find-replace patterns
+    "sys-004",     # system-admin: log analysis
+    "sec-004",     # security: SQL injection detection
+    "wfl-003",     # workflow: multi-step pipeline
+    "db-002",      # database: multi-table JOIN [NEW]
+    "tool-002",    # real-tools: dependency conflicts [NEW]
+    # L3 Hard (5 tasks) — challenges for strong agents
+    "web-006",     # web-browsing: accessibility audit
+    "mem-005",     # memory: long doc summarization
+    "xdom-001",    # cross-domain: email to calendar
+    "plan-004",    # planning: API design from PRD [NEW]
+    "math-004",    # math-reasoning: linear programming [NEW]
+    # L4 Expert (3 tasks) — only the best agents pass
+    "code-014",    # code-assistance: multi-file refactoring
+    "debug-005",   # debugging: performance optimization [NEW]
+    "tool-005",    # real-tools: CI/CD pipeline design [NEW]
 ]
 
 

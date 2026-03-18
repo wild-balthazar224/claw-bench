@@ -255,7 +255,10 @@ def run_single_task(
         # Verify results
         result = verify_task(task_dir, workspace)
         passed = result.passed
-        score = result.checks_passed / max(result.checks_total, 1)
+        if result.weighted_score is not None:
+            score = result.weighted_score
+        else:
+            score = result.checks_passed / max(result.checks_total, 1)
         details = result.details
 
     except Exception as exc:

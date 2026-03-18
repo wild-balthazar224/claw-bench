@@ -15,6 +15,12 @@ def pytest_addoption(parser):
     )
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "weight(n): set test weight for scoring (default 2)"
+    )
+
+
 @pytest.fixture
 def workspace(request):
     """Return the workspace path as a Path object.
