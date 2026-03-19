@@ -18,6 +18,9 @@ services:
       - OPENAI_COMPAT_API_KEY=${OPENAI_COMPAT_API_KEY:-}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - EXPERT_PASSWORD=${EXPERT_PASSWORD:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - TASK_GEN_MODEL=${TASK_GEN_MODEL:-}
     volumes:
       - cache-data:/var/claw-bench/cache
       - results-data:/var/claw-bench/results

@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -e ".[server]" 2>/dev/null || true
 
 # Copy source
 COPY . .
-RUN pip install --no-cache-dir -e ".[server]"
+RUN pip install --no-cache-dir -e ".[server]" && pip install --no-cache-dir openai
 
 # Create directories
 RUN mkdir -p /var/claw-bench/cache /var/claw-bench/results /app/data/results /app/data/skills-gain /app/data/moltbook
