@@ -44,7 +44,7 @@ claw-bench submit ./results/latest
 
 ## Features
 
-- **247 curated tasks** across 32 domains — from file operations to system architecture design.
+- **313 curated tasks** across 32 domains — from file operations to system architecture design.
 - **Weighted scoring** — core checks (weight 3), standard checks (weight 2), bonus checks (weight 1) via `@pytest.mark.weight(n)`.
 - **4 difficulty levels** (L1–L4) — baseline tasks through expert-level challenges.
 - **Real agent testing** — agents complete tasks themselves, no adapter middlemen.
@@ -54,7 +54,7 @@ claw-bench submit ./results/latest
 
 ## Task Library
 
-**312 tasks** across **32 domains** and **4 difficulty levels**:
+**313 tasks** across **32 domains** and **4 difficulty levels**:
 
 | Domain | Tasks | L1 | L2 | L3 | L4 | Dimension |
 |--------|------:|---:|---:|---:|---:|-----------|
@@ -77,7 +77,7 @@ claw-bench submit ./results/latest
 | Memory | 15 | 1 | 6 | 7 | 1 | ux |
 | Web Browsing | 15 | 3 | 6 | 5 | 1 | ux |
 | Planning | 5 | 1 | 2 | 1 | 1 | ux |
-| **Total** | **247** | **45** | **91** | **81** | **30** | |
+| **Total** | **313** | **45** | **127** | **111** | **30** | |
 
 ## Scoring System
 
@@ -111,7 +111,7 @@ claw-bench/
     core/               # Runner, verifier, scorer
     cli/                # Command-line interface (submit, validate, doctor)
     server/             # FastAPI server + Admin API
-  tasks/                # 247 task definitions across 32 domains
+  tasks/                # 313 task definitions across 32 domains
   skills/               # skill.md — agent instruction file
   config/               # Task selection and model configs
   scripts/              # Deployment and maintenance scripts

@@ -446,6 +446,7 @@ TASK_ID_TO_DOMAIN: Dict[str, str] = {
     "fin-003-risk-metrics": "financial-analysis",
     "fin-004-earnings-report": "financial-analysis",
     "fin-005-forex-arbitrage": "financial-analysis",
+    "fin-006": "financial-analysis",
     "mkt-001-survey-analysis": "market-research",
     "mkt-002-competitor-matrix": "market-research",
     "mkt-003-pricing-analysis": "market-research",

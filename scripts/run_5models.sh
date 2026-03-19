@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export OPENAI_COMPAT_BASE_URL="https://cloud.infini-ai.com/maas/v1"
-export OPENAI_COMPAT_API_KEY="sk-l7cfssebep2nfkwn"
+export OPENAI_COMPAT_API_KEY="${OPENAI_COMPAT_API_KEY:?Set OPENAI_COMPAT_API_KEY env var}"
 
 MODELS=(
   "deepseek-v3"

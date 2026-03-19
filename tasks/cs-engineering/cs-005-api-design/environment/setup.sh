@@ -5,14 +5,14 @@ export WORKSPACE
 
 mkdir -p "$WORKSPACE"
 
-# Generate realistic API requirements with 25 endpoints and diverse methods and schemas
-python3 -c 'import json, random
+python3 - <<'PYEOF'
+import json, random, os
 random.seed(42)
+
+WORKSPACE = os.environ.get('WORKSPACE', os.getcwd())
 
 methods = ["GET", "POST", "PUT", "DELETE", "PATCH"]
 resources = ["users", "products", "orders", "categories", "reviews"]
-
-# Helper to generate simple JSON schema
 
 def gen_schema(req):
     if req:
@@ -31,7 +31,6 @@ lines = []
 
 for i in range(25):
     resource = random.choice(resources)
-    # Create paths with optional id param
     if random.random() < 0.6:
         path = f"/{resource}"
     else:
@@ -54,5 +53,6 @@ for i in range(25):
     lines.append(json.dumps(res_schema, indent=2))
     lines.append("")
 
-with open(f"{os.environ.get(\"WORKSPACE\", os.getcwd())}/api_requirements.txt", "w") as f:
+with open(os.path.join(WORKSPACE, "api_requirements.txt"), "w") as f:
     f.write("\n".join(lines))
+PYEOF

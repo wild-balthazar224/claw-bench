@@ -5,7 +5,8 @@ export WORKSPACE
 
 mkdir -p "$WORKSPACE/papers"
 
-python3 -c "import random; import os; random.seed(42)
+python3 - <<'PYEOF'
+import random; import os; random.seed(42)
 
 papers = [
     {
@@ -103,4 +104,5 @@ for i in range(25):
 
     with open(path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(content) + '\n')
-"
+
+PYEOF

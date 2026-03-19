@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 WORKSPACE="${1:-workspace}"
+export WORKSPACE
 
 mkdir -p "$WORKSPACE"
 
@@ -30,10 +31,10 @@ INSERT INTO orders (user_id, amount) VALUES
 EOF
 
 # Generate migration_spec.json with multiple operations
-python3 -c '
-import json
-import random
-random.seed(42)
+python3 - <<'PYEOF'
+import json, os
+
+WORKSPACE = os.environ.get('WORKSPACE', os.getcwd())
 
 migration_spec = [
     {
@@ -75,6 +76,6 @@ migration_spec = [
     }
 ]
 
-with open("'" + "$WORKSPACE" + "/migration_spec.json", "w") as f:
+with open(os.path.join(WORKSPACE, "migration_spec.json"), "w") as f:
     json.dump(migration_spec, f, indent=2)
-'
+PYEOF
