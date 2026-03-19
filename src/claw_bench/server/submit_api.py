@@ -505,7 +505,111 @@ DOMAIN_TO_DIMENSION: Dict[str, str] = {
     "education": "ux",
 }
 
+def _scan_tasks_from_disk():
+    """Scan tasks/ directory and add any task IDs not already in TASK_ID_TO_DOMAIN."""
+    tasks_root = _PROJECT_ROOT / "tasks"
+    if not tasks_root.is_dir():
+        return
+    try:
+        import tomli
+    except ImportError:
+        return
+    added = 0
+    for toml_file in tasks_root.rglob("task.toml"):
+        try:
+            with open(toml_file, "rb") as f:
+                t = tomli.load(f)
+            if "task" in t and isinstance(t["task"], dict):
+                t.update(t.pop("task"))
+            tid = t.get("id", "")
+            domain = t.get("domain", toml_file.parent.parent.name)
+            if tid and tid not in TASK_ID_TO_DOMAIN:
+                TASK_ID_TO_DOMAIN[tid] = domain
+                if domain not in DOMAIN_TO_DIMENSION:
+                    DOMAIN_TO_DIMENSION[domain] = "skills"
+                added += 1
+        except Exception:
+            continue
+    if added > 0:
+        logger.info("Scanned disk: added %d new task IDs (total %d)", added, len(TASK_ID_TO_DOMAIN))
+
+_scan_tasks_from_disk()
+
 VALID_TASK_IDS = set(TASK_ID_TO_DOMAIN.keys())
+
+
+def refresh_task_registry():
+    """Re-scan disk and update VALID_TASK_IDS + domains.json. Safe to call anytime."""
+    global VALID_TASK_IDS
+    _scan_tasks_from_disk()
+    VALID_TASK_IDS = set(TASK_ID_TO_DOMAIN.keys())
+
+    _sync_domains_json()
+
+    return len(VALID_TASK_IDS)
+
+
+def _sync_domains_json():
+    """Regenerate data/config/domains.json from TASK_ID_TO_DOMAIN."""
+    domains_file = _DATA_DIR / "config" / "domains.json"
+    try:
+        import tomli
+    except ImportError:
+        return
+
+    domain_stats: Dict[str, Dict[str, int]] = {}
+    tasks_root = _PROJECT_ROOT / "tasks"
+    for toml_file in tasks_root.rglob("task.toml"):
+        try:
+            with open(toml_file, "rb") as f:
+                t = tomli.load(f)
+            if "task" in t and isinstance(t["task"], dict):
+                t.update(t.pop("task"))
+            domain = t.get("domain", toml_file.parent.parent.name)
+            level = t.get("level", "L1").lower()
+            if domain not in domain_stats:
+                domain_stats[domain] = {"tasks": 0, "l1": 0, "l2": 0, "l3": 0, "l4": 0}
+            domain_stats[domain]["tasks"] += 1
+            if level in domain_stats[domain]:
+                domain_stats[domain][level] += 1
+        except Exception:
+            continue
+
+    existing_names: Dict[str, str] = {}
+    if domains_file.exists():
+        try:
+            for d in json.loads(domains_file.read_text()):
+                existing_names[d["id"]] = d.get("name", d["id"])
+        except Exception:
+            pass
+
+    result = []
+    for did in sorted(domain_stats.keys()):
+        s = domain_stats[did]
+        name = existing_names.get(did, did.replace("-", " ").title())
+        result.append({"id": did, "name": name, "tasks": s["tasks"],
+                       "l1": s["l1"], "l2": s["l2"], "l3": s["l3"], "l4": s["l4"]})
+
+    domains_file.parent.mkdir(parents=True, exist_ok=True)
+    domains_file.write_text(json.dumps(result, indent=2, ensure_ascii=False))
+
+    # Also update skill.md numbers
+    import re
+    total = sum(s["tasks"] for s in domain_stats.values())
+    doms = len(domain_stats)
+    for md_path in [_PROJECT_ROOT / "skills" / "skill.md",
+                    _PROJECT_ROOT / "leaderboard" / "public" / "skill.md"]:
+        if md_path.exists():
+            try:
+                text = md_path.read_text()
+                text = re.sub(r"全部 \d+ 任务", f"全部 {total} 任务", text)
+                text = re.sub(r"\d+ domains, \d+ tasks\)", f"{doms} domains, {total} tasks)", text)
+                text = re.sub(r"Full test = all \d+ tasks", f"Full test = all {total} tasks", text)
+                text = re.sub(r"~\d+ tasks, plan for", f"~{total} tasks, plan for", text)
+                md_path.write_text(text)
+            except Exception:
+                pass
+
 
 SUBJECT_MATTER_DOMAINS = {
     "accounting", "financial-analysis", "data-science", "scientific-computing",
