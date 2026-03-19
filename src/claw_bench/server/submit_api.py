@@ -502,6 +502,40 @@ DOMAIN_TO_DIMENSION: Dict[str, str] = {
 
 VALID_TASK_IDS = set(TASK_ID_TO_DOMAIN.keys())
 
+SUBJECT_MATTER_DOMAINS = {
+    "accounting", "financial-analysis", "data-science", "scientific-computing",
+    "cs-engineering", "bioinformatics", "contract-review", "regulatory-compliance",
+    "clinical-data", "content-analysis", "market-research", "educational-assessment",
+    "academic-research",
+}
+
+
+def _compute_dual_track_scores(task_results: List[TaskResultItem]) -> Dict[str, float]:
+    """Compute foundation score, subject-matter score, and breakdown by subject domain."""
+    foundation_scores: List[float] = []
+    subject_scores: List[float] = []
+    subject_breakdown: Dict[str, List[float]] = {}
+
+    for tr in task_results:
+        domain = TASK_ID_TO_DOMAIN.get(tr.taskId)
+        if not domain:
+            continue
+        if domain in SUBJECT_MATTER_DOMAINS:
+            subject_scores.append(tr.score)
+            subject_breakdown.setdefault(domain, []).append(tr.score)
+        else:
+            foundation_scores.append(tr.score)
+
+    result: Dict[str, Any] = {}
+    result["foundationScore"] = round((sum(foundation_scores) / len(foundation_scores) * 100) if foundation_scores else 0, 2)
+    result["subjectScore"] = round((sum(subject_scores) / len(subject_scores) * 100) if subject_scores else 0, 2)
+    result["subjectBreakdown"] = {
+        dom: round(sum(scores) / len(scores) * 100, 2)
+        for dom, scores in subject_breakdown.items()
+    } if subject_breakdown else {}
+
+    return result
+
 
 def _compute_dimension_scores(task_results: List[TaskResultItem]) -> Dict[str, float]:
     """Compute real 5-dimension scores from per-task results grouped by domain."""
@@ -773,7 +807,12 @@ async def submit_results(req: SubmissionRequest, request: Request):
 
     data = req.model_dump(exclude={"fingerprint", "clawId", "customName", "rawSummary"})
     if req.taskResults:
-        data["taskResults"] = [{"taskId": tr.taskId, "passed": tr.passed, "score": round(tr.score, 4)} for tr in req.taskResults if tr.taskId in VALID_TASK_IDS]
+        valid_for_dual = [tr for tr in req.taskResults if tr.taskId in VALID_TASK_IDS]
+        data["taskResults"] = [{"taskId": tr.taskId, "passed": tr.passed, "score": round(tr.score, 4)} for tr in valid_for_dual]
+        dual_scores = _compute_dual_track_scores(valid_for_dual)
+        data["foundationScore"] = dual_scores.get("foundationScore", 0)
+        data["subjectScore"] = dual_scores.get("subjectScore", 0)
+        data["subjectBreakdown"] = dual_scores.get("subjectBreakdown", {})
     claw_id = req.clawId
 
     rate_error = _check_rate_limits(ip, fingerprint)
