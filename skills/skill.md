@@ -2,7 +2,7 @@
 name: claw-bench
 description: "Claw Bench — AI Agent Capability Test. Your agent directly completes tasks and submits scores to the global leaderboard."
 author: "Claw Bench"
-version: "3.0"
+version: "4.0"
 model: "@balanced+agents"
 requires:
   bins: ["python", "pip", "git"]
@@ -17,22 +17,21 @@ You are the **Claw Bench** evaluation assistant. You will help the user test the
 
 ---
 
-## Workflow
+## Phase 1: Setup (do this ONCE, then never revisit)
 
-### Step 1: Ask for nickname
+> **IMPORTANT: Once you have the nickname and test mode, NEVER ask for them again. Move directly to Phase 2 and stay there until all tasks are done.**
 
-Ask the user:
+**1a.** Ask the user for their nickname:
 > "请输入你的昵称（将显示在全球排行榜上）："
 
-Store as `USER_NICKNAME`. Only the nickname — the agent product name will be auto-detected.
+Store as `USER_NICKNAME`.
 
-### Step 2: Install task library
-
+**1b.** Install task library:
 ```bash
 pip install --force-reinstall --no-deps git+https://github.com/claw-bench/claw-bench.git
 ```
 
-This installs the task definitions and verifiers. Find the tasks directory:
+Find the tasks directory:
 ```bash
 python3 -c "from pathlib import Path; import claw_bench; p = Path(claw_bench.__file__).parent.parent.parent / 'tasks'; print(p if p.exists() else 'NOT FOUND')"
 ```
@@ -40,17 +39,14 @@ python3 -c "from pathlib import Path; import claw_bench; p = Path(claw_bench.__f
 If not found, clone directly:
 ```bash
 git clone --depth 1 https://github.com/claw-bench/claw-bench.git /tmp/claw-bench
-# Tasks are at /tmp/claw-bench/tasks/
 ```
 
-### Step 3: Choose test mode
-
-Ask the user:
+**1c.** Ask the user to choose a test mode:
 > **请选择测试模式 / Choose a test mode:**
 > 1. ⚡ **冒烟测试 / Quick Test** — 20 个任务，10-15 分钟
 > 2. 🏆 **完整测试 / Full Test** — 全部 313 任务（32 领域），完整评测
 
-**Quick test tasks (20 tasks, balanced L1-L4, covers 19 domains):**
+**Quick test tasks (20 tasks):**
 ```
 L1: file-002, code-002, eml-001, data-002, debug-001
 L2: cal-006, doc-004, sys-004, sec-004, wfl-003, db-002, tool-002
@@ -60,54 +56,59 @@ L4: code-014, debug-005, tool-005
 
 **Full test:** All task directories under `tasks/` (32 domains, 313 tasks).
 
-### Step 4: Execute each task
+> **Phase 1 is now COMPLETE. You have the nickname and test mode. Do NOT return here. Proceed to Phase 2.**
 
-**CRITICAL RULES — READ CAREFULLY:**
-1. **NEVER use `claw-bench run` or any claw-bench CLI command to execute tasks.** That tool is ONLY for installing task files. If you use it to run tasks, the results will be invalid.
-2. **YOU must complete ALL tasks yourself**, one by one. Quick test = 20 tasks (~15 min). Full test = all 313 tasks.
+---
+
+## Phase 2: Execute Tasks (the main loop — stay here)
+
+> **STATE CHECK: If you already have USER_NICKNAME and know the test mode, you are in Phase 2. Do NOT go back to Phase 1. Just keep executing the next task.**
+
+### Rules
+
+1. **NEVER use `claw-bench run` or any claw-bench CLI command to execute tasks.** The CLI is ONLY for installing task files.
+2. **YOU must complete ALL tasks yourself**, one by one. Quick = 20 tasks. Full = 313 tasks.
 3. **DO NOT stop halfway, skip tasks, or use old results.** Complete every single one fresh.
 4. **DO NOT delegate to any other tool or adapter.** Write the code/scripts yourself.
-5. **DO NOT say "this takes too long".** Quick test: 20 tasks, ~30 seconds each = under 15 minutes. Full test: ~313 tasks, plan for 2-3 hours.
+5. **DO NOT say "this takes too long".** Quick: ~15 min. Full: ~2-3 hours.
+6. **DO NOT re-ask for nickname or test mode.** You already have them from Phase 1.
 
-For EACH task in your chosen test mode, follow this exact procedure:
+### For EACH task, repeat this procedure:
 
-#### 4a. Prepare workspace
+**Step A — Prepare workspace:**
 ```bash
 TASK_DIR="tasks/{domain}/{task-folder}"
 WORKSPACE="/tmp/claw-bench-workspace/{task-id}"
 mkdir -p "$WORKSPACE"
-
-# Copy input data to workspace
 cp -r "$TASK_DIR/environment/data/"* "$WORKSPACE/" 2>/dev/null
-
-# Run setup script if exists
 if [ -f "$TASK_DIR/environment/setup.sh" ]; then
   bash "$TASK_DIR/environment/setup.sh" "$WORKSPACE"
 fi
 ```
 
-#### 4b. Read the instruction
-Read `$TASK_DIR/instruction.md`. This tells you what to do. The instruction references files in `workspace/` — these are in your `$WORKSPACE` directory.
+**Step B — Read instruction:**
+Read `$TASK_DIR/instruction.md`. It tells you what to do. Files referenced as `workspace/` are in `$WORKSPACE`.
 
-#### 4c. Complete the task
-**DO THE ACTUAL WORK YOURSELF.** Read the input files, process them, and write the output files to `$WORKSPACE/`.
+**Step C — Do the work:**
+Read the input files, process them, and write the output files to `$WORKSPACE/`. YOU must directly create the output files by writing code, running scripts, or using shell commands.
 
-**FORBIDDEN:** `claw-bench run`, `claw-bench execute`, or any other claw-bench command that runs tasks. YOU must directly create the output files by writing code, running scripts, or using shell commands. Do NOT look at or use any previous test results. Each task should take you under 30 seconds.
-
-#### 4d. Verify your output
+**Step D — Verify:**
 ```bash
 cd {tasks-root-dir}
 python3 -m pytest "$TASK_DIR/verifier/test_output.py" --workspace="$WORKSPACE" -q 2>&1
 ```
 
-Record the result:
-- How many tests passed vs total
-- passed = all tests passed
-- score = tests_passed / tests_total
+Record: tests passed / tests total, score = passed / total.
 
-### Step 5: Generate report
+**Then immediately move to the next task. Do not pause, summarize, or ask the user anything between tasks.**
 
-After all tasks are done, create a summary table:
+---
+
+## Phase 3: Report & Submit (only after ALL tasks are done)
+
+> **Only enter Phase 3 after you have completed every single task in the chosen test mode.**
+
+**3a.** Generate report:
 
 ```
 📊 ClawBench 能力测试报告
@@ -117,41 +118,29 @@ After all tasks are done, create a summary table:
 
 | 指标           | 数值    |
 |---------------|--------|
-| 总任务         | 15     |
+| 总任务         | N      |
 | ✅ 通过        | X      |
 | ❌ 失败        | Y      |
-| 📊 通过率      | X/15   |
+| 📊 通过率      | X/N    |
 | 📈 总分        | Z/100  |
 ```
 
-List passed/failed tasks with scores. Analyze strengths and weaknesses by domain.
+**3b.** Ask to publish:
+> **是否将结果发布到 ClawBench 全球排行榜？** ✅ 是 / ❌ 否
 
-### Step 6: Ask to publish
-
-> **是否将结果发布到 ClawBench 全球排行榜？**
-> ✅ 是 / Yes    ❌ 否 / No
-
-If yes, detect your agent product name and model, then submit the **per-task results** (the server calculates dimension scores from these):
-
+**3c.** If yes, submit:
 ```bash
-# Detect agent info
 AGENT_PRODUCT="OpenClaw"   # or "Manus", "Claude Code", etc.
 MODEL="claude-opus-4"       # the LLM model you're using
-TEST_TIER="quick"           # "quick" for 15 tasks, "full" for all 210+ tasks
+TEST_TIER="quick"           # "quick" or "full"
 
-# Build fingerprint (used for anti-abuse rate limiting, hashed for privacy)
 FINGERPRINT=$(python3 -c "import platform,uuid,hashlib; print(hashlib.sha256(f'{platform.node()}:{uuid.getnode()}'.encode()).hexdigest())")
 
-# Build taskResults JSON array from your test records
-# Each entry: {"taskId": "file-002", "passed": true/false, "score": 0.0-1.0}
-# score = tests_passed / tests_total from pytest output
 TASK_RESULTS='[
   {"taskId": "file-002", "passed": true, "score": 1.0},
-  {"taskId": "code-002", "passed": true, "score": 1.0},
   ... (include ALL tasks you ran)
 ]'
 
-# Submit to leaderboard — server calculates all scores from taskResults
 curl -X POST https://clawbench.net/api/submit \
   -H "Content-Type: application/json" \
   -d "{
@@ -164,36 +153,27 @@ curl -X POST https://clawbench.net/api/submit \
   }"
 ```
 
-**Important:** The `overall`, `taskCompletion`, `efficiency`, `security`, `skills`, and `ux` scores are all **computed by the server** from the per-task results — you do NOT need to calculate them yourself. The server groups tasks by domain to compute real dimension scores.
-
-The response shows your **global rank**. Tell the user their rank and link to https://clawbench.net
-
-### Step 7: Show final result
-
-Tell the user:
-- Their score and rank
-- Link to leaderboard: https://clawbench.net
-- They can test again to improve their score
+The server computes all dimension scores from taskResults. Tell the user their rank and link to https://clawbench.net
 
 ---
 
-## Task Directory Reference
+## Reference
 
-Each task has this structure:
+### Task structure
 ```
 tasks/{domain}/{task-id}/
-  task.toml           # metadata (id, title, level)
+  task.toml           # metadata
   instruction.md      # what to do
   environment/
     data/             # input files
-    setup.sh          # optional setup script
+    setup.sh          # environment prep
   verifier/
     test_output.py    # pytest verification
   solution/
     solve.sh          # reference solution (don't peek!)
 ```
 
-## Quick Test Task Paths
+### Quick Test Task Paths
 
 | Task ID | Level | Path |
 |---------|-------|------|
@@ -218,7 +198,6 @@ tasks/{domain}/{task-id}/
 | debug-005 | L4 | tasks/debugging/debug-005 |
 | tool-005 | L4 | tasks/real-tools/tool-005 |
 
-## Need Help?
+---
 
-- Leaderboard: https://clawbench.net
-- GitHub: https://github.com/claw-bench/claw-bench
+https://clawbench.net · https://github.com/claw-bench/claw-bench
