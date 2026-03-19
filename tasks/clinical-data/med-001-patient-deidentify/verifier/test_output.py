@@ -5,8 +5,11 @@ import json
 from pathlib import Path
 
 @pytest.fixture
-def workspace(tmp_path_factory):
-    return Path(os.environ.get("CLAW_WORKSPACE", "/workspace"))
+def workspace(request):
+    ws = request.config.getoption("--workspace")
+    if ws:
+        return Path(ws)
+    return Path(os.environ.get("CLAW_WORKSPACE", os.environ.get("WORKSPACE", "workspace")))
 
 @pytest.mark.weight(3)
 def test_deidentified_exists(workspace):
