@@ -651,6 +651,14 @@ async def submit_expert_proposal(
     data["_status"] = "generating"
     data["_revisions"] = []
 
+    expert_file = _EXPERTS_DIR / f"{username}.json"
+    if expert_file.exists():
+        profile = json.loads(expert_file.read_text())
+        data["_expertDisplayName"] = profile.get("displayName", "")
+        data["_expertEmail"] = profile.get("email", "")
+        data["_expertOrganization"] = profile.get("organization", "")
+        data["_expertRole"] = profile.get("role", "expert")
+
     filepath = _PROPOSALS_DIR / f"{proposal_id}.json"
     filepath.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
