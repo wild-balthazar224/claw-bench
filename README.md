@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>The Definitive AI Agent Benchmark</strong><br/>
-  Standardized, reproducible evaluation across 247 tasks, 19 domains, and 4 difficulty levels.
+  Standardized, reproducible evaluation across 312 tasks, 32 domains, and 4 difficulty levels.
 </p>
 
 <p align="center">
@@ -44,7 +44,7 @@ claw-bench submit ./results/latest
 
 ## Features
 
-- **247 curated tasks** across 19 domains — from file operations to system architecture design.
+- **247 curated tasks** across 32 domains — from file operations to system architecture design.
 - **Weighted scoring** — core checks (weight 3), standard checks (weight 2), bonus checks (weight 1) via `@pytest.mark.weight(n)`.
 - **4 difficulty levels** (L1–L4) — baseline tasks through expert-level challenges.
 - **Real agent testing** — agents complete tasks themselves, no adapter middlemen.
@@ -54,7 +54,7 @@ claw-bench submit ./results/latest
 
 ## Task Library
 
-**247 tasks** across **19 domains** and **4 difficulty levels**:
+**312 tasks** across **32 domains** and **4 difficulty levels**:
 
 | Domain | Tasks | L1 | L2 | L3 | L4 | Dimension |
 |--------|------:|---:|---:|---:|---:|-----------|
@@ -94,7 +94,7 @@ Check points are weighted:
 
 ## Quick Test
 
-The **quick test** selects 20 representative tasks across all 19 domains:
+The **quick test** selects 20 representative tasks across all 32 domains:
 
 ```
 L1 (5):  file-002, code-002, eml-001, data-002, debug-001
@@ -111,7 +111,7 @@ claw-bench/
     core/               # Runner, verifier, scorer
     cli/                # Command-line interface (submit, validate, doctor)
     server/             # FastAPI server + Admin API
-  tasks/                # 247 task definitions across 19 domains
+  tasks/                # 247 task definitions across 32 domains
   skills/               # skill.md — agent instruction file
   config/               # Task selection and model configs
   scripts/              # Deployment and maintenance scripts
