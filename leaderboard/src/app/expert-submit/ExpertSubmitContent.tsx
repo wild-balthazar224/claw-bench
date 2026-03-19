@@ -190,9 +190,20 @@ export default function ExpertSubmitContent() {
   const { lang } = useI18n();
   const t = T[lang] || T.en;
 
+  // Auth state
+  type AuthMode = "login" | "register";
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [organization, setOrganization] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [token, setToken] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<string>("");
   const [loginError, setLoginError] = useState("");
+  const [inviteCodes, setInviteCodes] = useState<{ code: string; used: boolean; usedBy?: string }[]>([]);
+  const [generatingCode, setGeneratingCode] = useState(false);
   const [form, setForm] = useState<FormData>({ ...emptyForm });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -216,23 +227,77 @@ export default function ExpertSubmitContent() {
       const res = await fetch(`${API_BASE}/expert-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
-      if (res.status === 503) {
-        setLoginError(t.notConfigured);
-        return;
-      }
       if (!res.ok) {
-        setLoginError(t.wrongPassword);
+        const d = await res.json().catch(() => ({}));
+        setLoginError(d.detail || "Login failed");
         return;
       }
       const data = await res.json();
       setToken(data.token);
+      setCurrentUser(data.username);
       sessionStorage.setItem("expert_token", data.token);
+      sessionStorage.setItem("expert_user", data.username);
     } catch {
       setLoginError(t.connectionFailed);
     }
-  }, [password, t]);
+  }, [username, password, t]);
+
+  const register = useCallback(async () => {
+    setLoginError("");
+    if (!inviteCode.trim()) { setLoginError("Invite code is required"); return; }
+    if (username.length < 3) { setLoginError("Username must be at least 3 characters"); return; }
+    if (password.length < 6) { setLoginError("Password must be at least 6 characters"); return; }
+    if (!displayName.trim()) { setLoginError("Display name is required"); return; }
+    try {
+      const res = await fetch(`${API_BASE}/expert-register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, displayName, email, organization, inviteCode }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setLoginError(d.detail || "Registration failed");
+        return;
+      }
+      const data = await res.json();
+      setToken(data.token);
+      setCurrentUser(data.username);
+      sessionStorage.setItem("expert_token", data.token);
+      sessionStorage.setItem("expert_user", data.username);
+    } catch {
+      setLoginError(t.connectionFailed);
+    }
+  }, [username, password, displayName, email, organization, inviteCode, t]);
+
+  const loadInviteCodes = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/expert-invite-codes`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setInviteCodes(await res.json());
+    } catch {}
+  }, [token]);
+
+  const generateInviteCode = useCallback(async () => {
+    if (!token) return;
+    setGeneratingCode(true);
+    try {
+      const res = await fetch(`${API_BASE}/expert-invite-codes`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) loadInviteCodes();
+    } catch {}
+    setGeneratingCode(false);
+  }, [token, loadInviteCodes]);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("expert_token");
+    const savedUser = sessionStorage.getItem("expert_user");
+    if (saved) { setToken(saved); setCurrentUser(savedUser || ""); }
+  }, []);
+
+  useEffect(() => { if (token) loadInviteCodes(); }, [token, loadInviteCodes]);
 
   /* ── Form helpers ── */
   const updateField = (field: keyof FormData, value: string) => {
@@ -392,42 +457,82 @@ export default function ExpertSubmitContent() {
     marginBottom: "1.5rem",
   };
 
-  /* ── Login screen ── */
+  /* ── Login / Register screen ── */
   if (!token) {
+    const btnStyle: React.CSSProperties = { width: "100%", padding: "0.65rem", background: "var(--accent)", color: "#fff", border: "none", borderRadius: "6px", fontWeight: 600, fontSize: "0.88rem", cursor: "pointer" };
+    const tabStyle = (active: boolean): React.CSSProperties => ({
+      flex: 1, padding: "0.5rem", border: "none", borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
+      background: "transparent", color: active ? "var(--accent)" : "var(--text-tertiary)",
+      fontWeight: 600, fontSize: "0.88rem", cursor: "pointer",
+    });
     return (
       <>
         <div className="page-header">
           <h1>{t.title}</h1>
           <p>{t.subtitle}</p>
         </div>
-        <div style={{ maxWidth: 400, margin: "3rem auto" }}>
+        <div style={{ maxWidth: 420, margin: "2rem auto" }}>
           <div className="card" style={{ padding: "2rem" }}>
-            <label style={labelStyle}>{t.passwordLabel}</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setLoginError(""); }}
-              onKeyDown={(e) => e.key === "Enter" && login()}
-              placeholder={t.passwordPlaceholder}
-              style={{ ...inputStyle, marginBottom: "0.75rem" }}
-            />
-            {loginError && <p style={{ ...errorStyle, marginBottom: "0.75rem" }}>{loginError}</p>}
-            <button
-              onClick={login}
-              style={{
-                width: "100%",
-                padding: "0.65rem",
-                background: "var(--accent)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "6px",
-                fontWeight: 600,
-                fontSize: "0.88rem",
-                cursor: "pointer",
-              }}
-            >
-              {t.unlock}
-            </button>
+            <div style={{ display: "flex", marginBottom: "1.5rem" }}>
+              <button style={tabStyle(authMode === "login")} onClick={() => { setAuthMode("login"); setLoginError(""); }}>
+                {lang === "zh" ? "登录" : "Login"}
+              </button>
+              <button style={tabStyle(authMode === "register")} onClick={() => { setAuthMode("register"); setLoginError(""); }}>
+                {lang === "zh" ? "注册" : "Register"}
+              </button>
+            </div>
+
+            {authMode === "login" ? (
+              <>
+                <div style={fieldGroup}>
+                  <label style={labelStyle}>{lang === "zh" ? "用户名" : "Username"}</label>
+                  <input type="text" value={username} onChange={(e) => { setUsername(e.target.value); setLoginError(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && login()} placeholder="username" style={inputStyle} />
+                </div>
+                <div style={fieldGroup}>
+                  <label style={labelStyle}>{lang === "zh" ? "密码" : "Password"}</label>
+                  <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setLoginError(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && login()} placeholder="••••••" style={inputStyle} />
+                </div>
+                {loginError && <p style={{ ...errorStyle, marginBottom: "0.75rem" }}>{loginError}</p>}
+                <button onClick={login} style={btnStyle}>{lang === "zh" ? "登录" : "Login"}</button>
+              </>
+            ) : (
+              <>
+                <div style={fieldGroup}>
+                  <label style={labelStyle}>{lang === "zh" ? "邀请码 *" : "Invite Code *"}</label>
+                  <input type="text" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)}
+                    placeholder={lang === "zh" ? "请输入邀请码" : "Enter invite code"} style={inputStyle} />
+                </div>
+                <div style={fieldGroup}>
+                  <label style={labelStyle}>{lang === "zh" ? "用户名 *" : "Username *"}</label>
+                  <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+                    placeholder={lang === "zh" ? "3-30 个字符" : "3-30 characters"} style={inputStyle} />
+                </div>
+                <div style={fieldGroup}>
+                  <label style={labelStyle}>{lang === "zh" ? "密码 *" : "Password *"}</label>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                    placeholder={lang === "zh" ? "至少 6 个字符" : "At least 6 characters"} style={inputStyle} />
+                </div>
+                <div style={fieldGroup}>
+                  <label style={labelStyle}>{lang === "zh" ? "显示名称 *" : "Display Name *"}</label>
+                  <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder={lang === "zh" ? "例如：张教授" : "e.g., Dr. Smith"} style={inputStyle} />
+                </div>
+                <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={labelStyle}>{lang === "zh" ? "邮箱" : "Email"}</label>
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="optional" style={inputStyle} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={labelStyle}>{lang === "zh" ? "机构" : "Organization"}</label>
+                    <input type="text" value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="optional" style={inputStyle} />
+                  </div>
+                </div>
+                {loginError && <p style={{ ...errorStyle, marginBottom: "0.75rem" }}>{loginError}</p>}
+                <button onClick={register} style={btnStyle}>{lang === "zh" ? "注册" : "Register"}</button>
+              </>
+            )}
           </div>
         </div>
       </>
@@ -562,6 +667,57 @@ export default function ExpertSubmitContent() {
     );
   }
 
+  /* ── Invite Code Panel (collapsible) ── */
+  const [showInvites, setShowInvites] = useState(false);
+  const invitePanel = (
+    <div style={{ maxWidth: 720, margin: "0 auto 1rem" }}>
+      <div className="card" style={{ padding: "1rem 1.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>{currentUser}</span>
+            <button onClick={() => { setToken(null); setCurrentUser(""); sessionStorage.removeItem("expert_token"); sessionStorage.removeItem("expert_user"); }}
+              style={{ marginLeft: "1rem", fontSize: "0.75rem", color: "var(--text-tertiary)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+              {lang === "zh" ? "退出" : "Logout"}
+            </button>
+          </div>
+          <button onClick={() => setShowInvites(!showInvites)}
+            style={{ fontSize: "0.78rem", color: "var(--accent)", background: "none", border: "1px solid var(--accent)", borderRadius: "6px", padding: "0.25rem 0.7rem", cursor: "pointer" }}>
+            {showInvites ? (lang === "zh" ? "收起邀请码" : "Hide Invites") : (lang === "zh" ? "我的邀请码" : "My Invite Codes")}
+          </button>
+        </div>
+        {showInvites && (
+          <div style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+              <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                {lang === "zh" ? "分享邀请码给其他专家注册" : "Share invite codes with other experts to register"}
+              </span>
+              <button onClick={generateInviteCode} disabled={generatingCode}
+                style={{ fontSize: "0.75rem", padding: "0.2rem 0.6rem", background: "var(--accent)", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+                {generatingCode ? "..." : (lang === "zh" ? "+ 生成邀请码" : "+ Generate Code")}
+              </button>
+            </div>
+            {inviteCodes.length === 0 ? (
+              <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>{lang === "zh" ? "还没有生成过邀请码" : "No invite codes yet"}</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                {inviteCodes.map((inv, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.3rem 0.5rem", background: "var(--bg-secondary)", borderRadius: "4px", fontSize: "0.75rem" }}>
+                    <code style={{ fontFamily: "var(--font-mono)", color: inv.used ? "var(--text-tertiary)" : "var(--accent)", textDecoration: inv.used ? "line-through" : "none" }}>
+                      {inv.code}
+                    </code>
+                    <span style={{ color: "var(--text-tertiary)" }}>
+                      {inv.used ? `${lang === "zh" ? "已使用" : "Used"}: ${inv.usedBy}` : (lang === "zh" ? "未使用" : "Available")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   /* ── Form ── */
   return (
     <>
@@ -569,6 +725,8 @@ export default function ExpertSubmitContent() {
         <h1>{t.title}</h1>
         <p>{t.subtitle}</p>
       </div>
+
+      {invitePanel}
 
       <div style={{ maxWidth: 720, margin: "0 auto 3rem" }}>
         <div className="card" style={{ padding: "2rem" }}>

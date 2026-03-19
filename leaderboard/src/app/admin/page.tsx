@@ -112,7 +112,7 @@ const emptySkillsGain: SkillsGainEntry = { framework: "", model: "", vanilla: 0,
 
 const emptyAgent: MoltBookAgent = { clawId: "", displayName: "", framework: "", model: "", submitter: "", modelTier: "flagship", runs: [] };
 
-type Tab = "pending" | "results" | "skills" | "moltbook" | "config" | "proposals" | "generated";
+type Tab = "pending" | "results" | "skills" | "moltbook" | "config" | "proposals" | "generated" | "experts";
 
 /* ── Components ─────────────────────────────────────────────────── */
 
@@ -197,6 +197,11 @@ export default function AdminPage() {
   const [configModels, setConfigModels] = useState("");
   const [configCapabilities, setConfigCapabilities] = useState("");
 
+  // Expert management
+  const [experts, setExperts] = useState<Record<string, unknown>[]>([]);
+  const [allInviteCodes, setAllInviteCodes] = useState<Record<string, unknown>[]>([]);
+  const [newInviteCount, setNewInviteCount] = useState(1);
+
   // Proposals state
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [expandedProposal, setExpandedProposal] = useState<string | null>(null);
@@ -260,10 +265,48 @@ export default function AdminPage() {
     } catch {}
   }, [token, headers]);
 
+  const loadExperts = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch(`${API}/experts`, { headers: headers() });
+      if (r.ok) setExperts(await r.json());
+    } catch {}
+  }, [token, headers]);
+
+  const loadAllInviteCodes = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch(`${API}/invite-codes`, { headers: headers() });
+      if (r.ok) setAllInviteCodes(await r.json());
+    } catch {}
+  }, [token, headers]);
+
+  const adminGenerateInvites = async () => {
+    const r = await fetch(`${API}/invite-codes/generate?count=${newInviteCount}`, { method: "POST", headers: headers() });
+    if (r.ok) { showMsg(`Generated ${newInviteCount} invite codes`); loadAllInviteCodes(); }
+  };
+
+  const toggleExpertStatus = async (un: string, current: string) => {
+    const newStatus = current === "active" ? "disabled" : "active";
+    const r = await fetch(`${API}/experts/${un}/status?status=${newStatus}`, { method: "PUT", headers: headers() });
+    if (r.ok) { showMsg(`${un}: ${newStatus}`); loadExperts(); }
+  };
+
+  const changeExpertRole = async (un: string, role: string) => {
+    const r = await fetch(`${API}/experts/${un}/role?role=${role}`, { method: "PUT", headers: headers() });
+    if (r.ok) { showMsg(`${un}: role → ${role}`); loadExperts(); }
+  };
+
+  const deleteExpert = async (un: string) => {
+    if (!confirm(`Delete expert ${un}?`)) return;
+    const r = await fetch(`${API}/experts/${un}`, { method: "DELETE", headers: headers() });
+    if (r.ok) { showMsg(`Deleted ${un}`); loadExperts(); }
+  };
+
   useEffect(() => {
     if (token) {
       loadPending(); loadResults(); loadSkillsGain(); loadAgents(); loadConfig();
-      loadProposals(); loadGeneratedTasks();
+      loadProposals(); loadGeneratedTasks(); loadExperts(); loadAllInviteCodes();
     }
   }, [token, loadPending, loadResults, loadSkillsGain, loadAgents, loadConfig, loadProposals, loadGeneratedTasks]);
 
@@ -472,6 +515,7 @@ export default function AdminPage() {
           ["results", "排行榜数据"],
           ["skills", "技能增益"],
           ["moltbook", "身份册"],
+          ["experts", `专家管理 (${experts.length})`],
           ["config", "配置管理"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
@@ -898,6 +942,80 @@ export default function AdminPage() {
             />
           </div>
         ))}
+      </>)}
+
+      {/* ── Experts Tab ── */}
+      {activeTab === "experts" && (<>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{experts.length} 个专家账号</span>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <input type="number" min={1} max={50} value={newInviteCount} onChange={(e) => setNewInviteCount(+e.target.value)}
+              style={{ width: "50px", padding: "0.3rem", border: "1px solid var(--border)", borderRadius: "4px", fontSize: "0.8rem" }} />
+            <Btn onClick={adminGenerateInvites}>生成邀请码</Btn>
+          </div>
+        </div>
+
+        {/* Expert accounts table */}
+        <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: "1.5rem" }}>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>用户名</th><th>显示名</th><th>邮箱</th><th>机构</th><th>角色</th><th>提案数</th><th>邀请数</th><th>状态</th><th>注册时间</th><th style={{ textAlign: "right" }}>操作</th></tr></thead>
+              <tbody>
+                {experts.map((e, i) => (
+                  <tr key={String(e.username) || i}>
+                    <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>{String(e.username)}</td>
+                    <td style={{ fontWeight: 500 }}>{String(e.displayName || "")}</td>
+                    <td style={{ fontSize: "0.78rem" }}>{String(e.email || "-")}</td>
+                    <td style={{ fontSize: "0.78rem" }}>{String(e.organization || "-")}</td>
+                    <td>
+                      <select value={String(e.role || "expert")} onChange={(ev) => changeExpertRole(String(e.username), ev.target.value)}
+                        style={{ fontSize: "0.72rem", padding: "0.15rem 0.3rem", border: "1px solid var(--border)", borderRadius: "4px" }}>
+                        <option value="expert">expert</option>
+                        <option value="senior">senior</option>
+                        <option value="reviewer">reviewer</option>
+                      </select>
+                    </td>
+                    <td style={{ textAlign: "center" }}>{String(e.proposalCount || 0)}</td>
+                    <td style={{ textAlign: "center" }}>{String(e.inviteCodesGenerated || 0)}</td>
+                    <td>
+                      <span style={{ fontSize: "0.72rem", padding: "0.1rem 0.4rem", borderRadius: "4px",
+                        background: e.status === "active" ? "rgba(76,175,80,0.1)" : "rgba(244,67,54,0.1)",
+                        color: e.status === "active" ? "var(--success)" : "var(--danger)" }}>
+                        {String(e.status)}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: "0.72rem", color: "var(--text-tertiary)" }}>{String(e.registeredAt || "").split("T")[0]}</td>
+                    <td style={{ textAlign: "right" }}>
+                      <Btn onClick={() => toggleExpertStatus(String(e.username), String(e.status))} variant="secondary">
+                        {e.status === "active" ? "禁用" : "启用"}
+                      </Btn>{" "}
+                      <Btn onClick={() => deleteExpert(String(e.username))} variant="danger">删除</Btn>
+                    </td>
+                  </tr>
+                ))}
+                {experts.length === 0 && <tr><td colSpan={10} style={{ textAlign: "center", padding: "2rem", color: "var(--text-tertiary)" }}>暂无专家账号</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Invite codes */}
+        <div className="card" style={{ padding: "1.5rem" }}>
+          <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>邀请码管理 ({allInviteCodes.length} total)</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", maxHeight: "300px", overflow: "auto" }}>
+            {allInviteCodes.map((inv, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0.6rem", background: "var(--bg-secondary)", borderRadius: "4px", fontSize: "0.78rem" }}>
+                <code style={{ fontFamily: "var(--font-mono)", color: inv.used ? "var(--text-tertiary)" : "var(--accent)", textDecoration: inv.used ? "line-through" : "none" }}>
+                  {String(inv.code)}
+                </code>
+                <span style={{ color: "var(--text-tertiary)" }}>
+                  {inv.used ? `已使用: ${inv.usedBy} (${String(inv.usedAt || "").split("T")[0]})` : `可用 · 创建者: ${inv.createdBy}`}
+                </span>
+              </div>
+            ))}
+            {allInviteCodes.length === 0 && <p style={{ color: "var(--text-tertiary)", textAlign: "center", padding: "1rem" }}>暂无邀请码</p>}
+          </div>
+        </div>
       </>)}
     </div>
   );

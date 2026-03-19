@@ -338,38 +338,285 @@ async def update_config(name: str, data: dict, _: str = Depends(verify_admin)):
 # ── Expert Contribution System ─────────────────────────────────────────────
 
 _PROPOSALS_DIR = _DATA_DIR / "expert-proposals"
-try:
-    _PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
-except OSError:
-    pass
+_EXPERTS_DIR = _DATA_DIR / "experts"
+_INVITES_FILE = _DATA_DIR / "invite_codes.json"
 
-_EXPERT_TOKEN_FILE = _DATA_DIR / ".expert_token"
+for _d in [_PROPOSALS_DIR, _EXPERTS_DIR]:
+    try:
+        _d.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
 
 
-def _get_or_create_expert_token() -> str:
-    if _EXPERT_TOKEN_FILE.exists():
-        return _EXPERT_TOKEN_FILE.read_text().strip()
-    token = secrets.token_urlsafe(32)
-    _EXPERT_TOKEN_FILE.write_text(token)
-    return token
+# ── Expert Account System ────────────────────────────────────────────
+
+def _load_experts() -> Dict[str, Dict]:
+    """Load all expert accounts from disk."""
+    experts = {}
+    for f in _EXPERTS_DIR.glob("*.json"):
+        try:
+            data = json.loads(f.read_text())
+            experts[data["username"]] = data
+        except (json.JSONDecodeError, KeyError, OSError):
+            continue
+    return experts
+
+
+def _save_expert(data: Dict):
+    filepath = _EXPERTS_DIR / f"{data['username']}.json"
+    filepath.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def _load_invites() -> List[Dict]:
+    if _INVITES_FILE.exists():
+        try:
+            return json.loads(_INVITES_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return []
+
+
+def _save_invites(invites: List[Dict]):
+    _INVITES_FILE.write_text(json.dumps(invites, indent=2, ensure_ascii=False))
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    h = hashlib.sha256(f"{salt}:{password}".encode()).hexdigest()
+    return f"{salt}:{h}"
+
+
+def _check_password(stored: str, password: str) -> bool:
+    salt, h = stored.split(":", 1)
+    return secrets.compare_digest(h, hashlib.sha256(f"{salt}:{password}".encode()).hexdigest())
+
+
+def _create_expert_token(username: str) -> str:
+    payload = f"{username}:{secrets.token_urlsafe(24)}"
+    return payload
 
 
 def verify_expert(authorization: str = Header(...)) -> str:
+    """Verify expert token and return the username."""
     token = authorization.replace("Bearer ", "")
-    if not secrets.compare_digest(token, _get_or_create_expert_token()):
-        raise HTTPException(401, "Invalid expert token")
-    return token
+    if ":" not in token:
+        raise HTTPException(401, "Invalid token format")
+    username = token.split(":", 1)[0]
+    expert_file = _EXPERTS_DIR / f"{username}.json"
+    if not expert_file.exists():
+        raise HTTPException(401, "Expert account not found")
+    data = json.loads(expert_file.read_text())
+    if data.get("status") != "active":
+        raise HTTPException(403, "Account is disabled")
+    if data.get("token") != token:
+        raise HTTPException(401, "Invalid or expired token")
+    return username
+
+
+class ExpertRegisterInput(BaseModel):
+    username: str
+    password: str
+    displayName: str
+    email: str = ""
+    organization: str = ""
+    inviteCode: str
+
+
+class ExpertLoginInput(BaseModel):
+    username: str
+    password: str
+
+
+@router.post("/expert-register")
+async def expert_register(req: ExpertRegisterInput):
+    """Register a new expert account with an invite code."""
+    if len(req.username) < 3 or len(req.username) > 30:
+        raise HTTPException(422, "Username must be 3-30 characters")
+    if not req.username.isalnum() and not all(c.isalnum() or c in "-_" for c in req.username):
+        raise HTTPException(422, "Username can only contain letters, numbers, hyphens, underscores")
+    if len(req.password) < 6:
+        raise HTTPException(422, "Password must be at least 6 characters")
+
+    expert_file = _EXPERTS_DIR / f"{req.username}.json"
+    if expert_file.exists():
+        raise HTTPException(409, "Username already taken")
+
+    invites = _load_invites()
+    invite = None
+    for inv in invites:
+        if inv["code"] == req.inviteCode and not inv.get("used"):
+            invite = inv
+            break
+
+    if not invite:
+        raise HTTPException(403, "Invalid or already used invite code")
+
+    invite["used"] = True
+    invite["usedBy"] = req.username
+    invite["usedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    _save_invites(invites)
+
+    token = _create_expert_token(req.username)
+    expert_data = {
+        "username": req.username,
+        "passwordHash": _hash_password(req.password),
+        "displayName": req.displayName,
+        "email": req.email,
+        "organization": req.organization,
+        "token": token,
+        "status": "active",
+        "role": "expert",
+        "invitedBy": invite.get("createdBy", "system"),
+        "registeredAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "proposalCount": 0,
+        "inviteCodesGenerated": 0,
+    }
+    _save_expert(expert_data)
+
+    return {"status": "registered", "username": req.username, "token": token}
 
 
 @router.post("/expert-login")
-async def expert_login(req: LoginRequest):
-    """Authenticate domain experts with a separate password."""
-    expected = os.environ.get("EXPERT_PASSWORD", "")
-    if not expected:
-        raise HTTPException(503, "Expert password not configured. Set EXPERT_PASSWORD environment variable.")
-    if not secrets.compare_digest(req.password, expected):
-        raise HTTPException(401, "Invalid password")
-    return {"token": _get_or_create_expert_token()}
+async def expert_login(req: ExpertLoginInput):
+    """Login as an expert and get a session token."""
+    expert_file = _EXPERTS_DIR / f"{req.username}.json"
+    if not expert_file.exists():
+        raise HTTPException(401, "Invalid username or password")
+
+    data = json.loads(expert_file.read_text())
+    if not _check_password(data["passwordHash"], req.password):
+        raise HTTPException(401, "Invalid username or password")
+
+    if data.get("status") != "active":
+        raise HTTPException(403, "Account is disabled")
+
+    token = _create_expert_token(req.username)
+    data["token"] = token
+    _save_expert(data)
+
+    return {"token": token, "username": req.username, "displayName": data.get("displayName", "")}
+
+
+@router.get("/expert-profile")
+async def expert_profile(username: str = Depends(verify_expert)):
+    """Get current expert's profile."""
+    data = json.loads((_EXPERTS_DIR / f"{username}.json").read_text())
+    return {
+        "username": data["username"],
+        "displayName": data.get("displayName", ""),
+        "email": data.get("email", ""),
+        "organization": data.get("organization", ""),
+        "role": data.get("role", "expert"),
+        "proposalCount": data.get("proposalCount", 0),
+        "inviteCodesGenerated": data.get("inviteCodesGenerated", 0),
+        "registeredAt": data.get("registeredAt", ""),
+    }
+
+
+@router.post("/expert-invite-codes")
+async def generate_invite_codes(username: str = Depends(verify_expert)):
+    """Generate a new invite code (each expert can create multiple)."""
+    code = secrets.token_urlsafe(12)
+    invites = _load_invites()
+    invites.append({
+        "code": code,
+        "createdBy": username,
+        "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "used": False,
+        "usedBy": None,
+        "usedAt": None,
+    })
+    _save_invites(invites)
+
+    expert_data = json.loads((_EXPERTS_DIR / f"{username}.json").read_text())
+    expert_data["inviteCodesGenerated"] = expert_data.get("inviteCodesGenerated", 0) + 1
+    _save_expert(expert_data)
+
+    return {"code": code}
+
+
+@router.get("/expert-invite-codes")
+async def list_my_invite_codes(username: str = Depends(verify_expert)):
+    """List invite codes created by the current expert."""
+    invites = _load_invites()
+    my_codes = [inv for inv in invites if inv.get("createdBy") == username]
+    return my_codes
+
+
+# ── Admin: Expert Account Management ─────────────────────────────────
+
+@router.get("/experts")
+async def list_experts(_: str = Depends(verify_admin)):
+    """List all expert accounts (admin only)."""
+    experts = _load_experts()
+    return [
+        {k: v for k, v in data.items() if k != "passwordHash" and k != "token"}
+        for data in experts.values()
+    ]
+
+
+@router.put("/experts/{username}/status")
+async def update_expert_status(username: str, status: str, _: str = Depends(verify_admin)):
+    """Enable/disable an expert account (admin only)."""
+    expert_file = _EXPERTS_DIR / f"{username}.json"
+    if not expert_file.exists():
+        raise HTTPException(404, "Expert not found")
+    data = json.loads(expert_file.read_text())
+    if status not in ("active", "disabled"):
+        raise HTTPException(422, "Status must be 'active' or 'disabled'")
+    data["status"] = status
+    _save_expert(data)
+    return {"username": username, "status": status}
+
+
+@router.put("/experts/{username}/role")
+async def update_expert_role(username: str, role: str, _: str = Depends(verify_admin)):
+    """Change expert role (admin only). Roles: expert, senior, reviewer."""
+    expert_file = _EXPERTS_DIR / f"{username}.json"
+    if not expert_file.exists():
+        raise HTTPException(404, "Expert not found")
+    if role not in ("expert", "senior", "reviewer"):
+        raise HTTPException(422, "Role must be 'expert', 'senior', or 'reviewer'")
+    data = json.loads(expert_file.read_text())
+    data["role"] = role
+    _save_expert(data)
+    return {"username": username, "role": role}
+
+
+@router.delete("/experts/{username}")
+async def delete_expert(username: str, _: str = Depends(verify_admin)):
+    """Delete an expert account (admin only)."""
+    expert_file = _EXPERTS_DIR / f"{username}.json"
+    if not expert_file.exists():
+        raise HTTPException(404, "Expert not found")
+    expert_file.unlink()
+    return {"status": "deleted", "username": username}
+
+
+@router.get("/invite-codes")
+async def list_all_invite_codes(_: str = Depends(verify_admin)):
+    """List all invite codes (admin only)."""
+    return _load_invites()
+
+
+@router.post("/invite-codes/generate")
+async def admin_generate_invite_codes(count: int = 1, _: str = Depends(verify_admin)):
+    """Admin generates invite codes (no expert account needed)."""
+    invites = _load_invites()
+    new_codes = []
+    for _ in range(min(count, 50)):
+        code = secrets.token_urlsafe(12)
+        invites.append({
+            "code": code,
+            "createdBy": "admin",
+            "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "used": False,
+            "usedBy": None,
+            "usedAt": None,
+        })
+        new_codes.append(code)
+    _save_invites(invites)
+    return {"codes": new_codes, "count": len(new_codes)}
 
 
 class ExpertProposalInput(BaseModel):
@@ -393,13 +640,14 @@ class RevisionInput(BaseModel):
 async def submit_expert_proposal(
     req: ExpertProposalInput,
     background_tasks: BackgroundTasks,
-    _: str = Depends(verify_expert),
+    username: str = Depends(verify_expert),
 ):
     """Accept a proposal, save it, and auto-trigger LLM generation."""
     proposal_id = f"{int(time.time())}-{uuid4().hex[:6]}"
     data = req.model_dump()
     data["_proposalId"] = proposal_id
     data["_submittedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    data["_submittedBy"] = username
     data["_status"] = "generating"
     data["_revisions"] = []
 
@@ -407,6 +655,12 @@ async def submit_expert_proposal(
     filepath.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
     background_tasks.add_task(_auto_generate, data, proposal_id)
+
+    expert_file = _EXPERTS_DIR / f"{username}.json"
+    if expert_file.exists():
+        ed = json.loads(expert_file.read_text())
+        ed["proposalCount"] = ed.get("proposalCount", 0) + 1
+        _save_expert(ed)
 
     return {"status": "generating", "proposalId": proposal_id}
 
