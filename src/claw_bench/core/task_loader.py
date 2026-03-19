@@ -103,6 +103,12 @@ def load_task(task_dir: Path) -> TaskConfig:
     with open(toml_path, "rb") as fh:
         raw = tomli.load(fh)
 
+    # Handle [task] section format: merge into top level
+    if "task" in raw and isinstance(raw["task"], dict):
+        task_section = raw.pop("task")
+        for k, v in task_section.items():
+            raw.setdefault(k, v)
+
     # Inject the directory name as the task id when not explicitly set.
     raw.setdefault("id", task_dir.name)
 
