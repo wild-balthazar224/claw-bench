@@ -75,8 +75,9 @@ L4: code-014, debug-005, tool-005
 
 ### For EACH task, repeat this procedure:
 
-**Step A — Prepare workspace:**
+**Step A — Start timer and prepare workspace:**
 ```bash
+TASK_START=$(date +%s)
 TASK_DIR="tasks/{domain}/{task-folder}"
 WORKSPACE="/tmp/claw-bench-workspace/{task-id}"
 mkdir -p "$WORKSPACE"
@@ -92,13 +93,15 @@ Read `$TASK_DIR/instruction.md`. It tells you what to do. Files referenced as `w
 **Step C — Do the work:**
 Read the input files, process them, and write the output files to `$WORKSPACE/`. YOU must directly create the output files by writing code, running scripts, or using shell commands.
 
-**Step D — Verify:**
+**Step D — Verify and record:**
 ```bash
 cd {tasks-root-dir}
 python3 -m pytest "$TASK_DIR/verifier/test_output.py" --workspace="$WORKSPACE" -q 2>&1
+TASK_END=$(date +%s)
+TASK_TIME=$((TASK_END - TASK_START))
 ```
 
-Record: tests passed / tests total, score = passed / total.
+Record for this task: task_id, domain, level, tests_passed, tests_total, score, time_seconds.
 
 **Then immediately move to the next task. Do not pause, summarize, or ask the user anything between tasks.**
 
@@ -108,7 +111,7 @@ Record: tests passed / tests total, score = passed / total.
 
 > **Only enter Phase 3 after you have completed every single task in the chosen test mode.**
 
-**3a.** Generate a comprehensive report. Calculate all metrics from your recorded results and present in this format:
+**3a.** Generate a comprehensive report. Track timing for each task during Phase 2 (start/end time). Calculate all metrics from your recorded results and present in this format:
 
 ```
 ═══════════════════════════════════════════════════════
@@ -124,19 +127,25 @@ Record: tests passed / tests total, score = passed / total.
   总览 / Overview
 ───────────────────────────────────────────────────────
 
-| 指标 / Metric       | 数值 / Value |
-|---------------------|-------------|
-| 总任务 / Total       | N           |
-| ✅ 通过 / Passed     | X           |
-| ❌ 失败 / Failed     | Y           |
-| 📊 通过率 / Pass Rate | X/N (xx%)  |
-| 📈 总分 / Overall    | Z.xx / 100 |
+| 指标 / Metric              | 数值 / Value          |
+|----------------------------|-----------------------|
+| 总任务 / Total Tasks        | N                     |
+| ✅ 通过 / Passed            | X                     |
+| ❌ 失败 / Failed            | Y                     |
+| 📊 通过率 / Pass Rate       | X/N (xx.x%)           |
+| 📈 总分 / Overall Score     | Z.xx / 100            |
+| ⏱️ 总耗时 / Total Time      | Xm Ys                |
+| ⚡ 平均每任务 / Avg per Task  | X.Xs                 |
+| 🏃 最快任务 / Fastest Task   | {task-id} (X.Xs)     |
+| 🐢 最慢任务 / Slowest Task   | {task-id} (X.Xs)     |
+
+  (Track wall-clock time per task: start = before setup, end = after verify)
 
 ───────────────────────────────────────────────────────
   四维能力评分 / Dimension Scores
 ───────────────────────────────────────────────────────
 
-  Calculate each dimension score = average of task scores in that dimension × 100
+  Score = average of task scores in that dimension × 100
 
 | 维度 / Dimension    | 分数 / Score | 评价 / Rating  |
 |---------------------|-------------|----------------|
@@ -147,45 +156,75 @@ Record: tests passed / tests total, score = passed / total.
 
   Rating: ≥90 Excellent / ≥75 Good / ≥60 Fair / <60 Needs Improvement
 
-  Dimension domains:
-  - Efficiency: file-operations, data-analysis, workflow, database, real-tools, accounting, financial-analysis, data-science
-  - Security: security, system-admin, contract-review, regulatory-compliance, clinical-data
-  - Skills: code-assistance, cross-domain, multimodal, debugging, math-reasoning, bioinformatics, cs-engineering, scientific-computing
-  - UX: communication, email, calendar, document-editing, memory, web-browsing, planning, content-analysis, market-research, educational-assessment, academic-research
-
 ───────────────────────────────────────────────────────
   按难度分析 / Breakdown by Difficulty
 ───────────────────────────────────────────────────────
 
-| 难度 / Level | 总数 | 通过 | 通过率  | 平均分   |
-|-------------|------|------|--------|---------|
-| L1 Basic    | n    | x    | xx%    | xx.xx   |
-| L2 Medium   | n    | x    | xx%    | xx.xx   |
-| L3 Hard     | n    | x    | xx%    | xx.xx   |
-| L4 Expert   | n    | x    | xx%    | xx.xx   |
+| 难度 / Level | 总数 | 通过 | 通过率  | 平均分  | 平均耗时 |
+|-------------|------|------|--------|---------|---------|
+| L1 Basic    | n    | x    | xx%    | xx.xx   | X.Xs    |
+| L2 Medium   | n    | x    | xx%    | xx.xx   | X.Xs    |
+| L3 Hard     | n    | x    | xx%    | xx.xx   | X.Xs    |
+| L4 Expert   | n    | x    | xx%    | xx.xx   | X.Xs    |
 
 ───────────────────────────────────────────────────────
   按领域分析 / Breakdown by Domain
 ───────────────────────────────────────────────────────
 
-| 领域 / Domain        | 任务 | 通过 | 平均分  | 状态  |
-|---------------------|------|------|--------|-------|
-| {domain}            | n    | x    | xx.xx  | ✅/⚠️/❌ |
-| ...                 | ...  | ...  | ...    | ...   |
+| 领域 / Domain        | 任务 | 通过 | 平均分  | 耗时   | 状态  |
+|---------------------|------|------|--------|--------|-------|
+| {domain}            | n    | x    | xx.xx  | Xm Ys  | ✅/⚠️/❌ |
+| ...                 | ...  | ...  | ...    | ...    | ...   |
 
   Status: ✅ ≥80% passed / ⚠️ 50-79% / ❌ <50%
+```
 
+**CONDITIONAL: Only include the following section for FULL TEST (not quick test). Quick test has no subject-matter tasks.**
+
+```
+───────────────────────────────────────────────────────
+  专业领域评分 / Subject-Matter Track (Full Test Only)
+───────────────────────────────────────────────────────
+
+  Subject-matter domains test professional/industry knowledge applied via agent actions.
+  These 13 domains (65 tasks) are separate from the 19 foundation domains.
+
+| 指标 / Metric                     | 数值 / Value |
+|-----------------------------------|-------------|
+| 🎓 基础能力分 / Foundation Score    | xx.xx / 100 |
+| 🏢 专业能力分 / Subject Score       | xx.xx / 100 |
+
+| 专业领域 / Subject Domain          | 任务 | 通过 | 平均分   |
+|-----------------------------------|------|------|---------|
+| 会计 Accounting                    | 5    | x    | xx.xx   |
+| 金融分析 Financial Analysis         | 5    | x    | xx.xx   |
+| 数据科学 Data Science               | 5    | x    | xx.xx   |
+| 科学计算 Scientific Computing       | 5    | x    | xx.xx   |
+| 计算机工程 CS Engineering           | 5    | x    | xx.xx   |
+| 生物信息 Bioinformatics             | 5    | x    | xx.xx   |
+| 合同审查 Contract Review            | 5    | x    | xx.xx   |
+| 合规审计 Regulatory Compliance      | 5    | x    | xx.xx   |
+| 临床数据 Clinical Data              | 5    | x    | xx.xx   |
+| 内容分析 Content Analysis           | 5    | x    | xx.xx   |
+| 市场研究 Market Research            | 5    | x    | xx.xx   |
+| 教育评估 Educational Assessment     | 5    | x    | xx.xx   |
+| 学术研究 Academic Research          | 5    | x    | xx.xx   |
+```
+
+**Continue for both quick and full test:**
+
+```
 ───────────────────────────────────────────────────────
   失败任务明细 / Failed Tasks Detail
 ───────────────────────────────────────────────────────
 
-  List EVERY failed task with:
-| Task ID  | Domain    | Level | Score    | Passed/Total |
-|----------|-----------|-------|----------|-------------|
-| {id}     | {domain}  | {L}   | {x.xx}  | {p}/{t}     |
+| Task ID  | Domain    | Level | Score   | Tests   | Time  |
+|----------|-----------|-------|---------|---------|-------|
+| {id}     | {domain}  | {L}   | {x.xx}  | {p}/{t} | X.Xs  |
+  (List every task with score < 1.0)
 
 ───────────────────────────────────────────────────────
-  优势与不足分析 / Strengths & Weaknesses
+  优势与不足 / Strengths & Weaknesses
 ───────────────────────────────────────────────────────
 
 🌟 Strengths (top 3 domains by score):
@@ -194,12 +233,12 @@ Record: tests passed / tests total, score = passed / total.
   3. ...
 
 ⚠️ Weaknesses (bottom 3 domains by score):
-  1. {domain}: {score} — {brief analysis why and what to improve}
+  1. {domain}: {score} — {what went wrong and how to improve}
   2. ...
   3. ...
 
 💡 Recommendations:
-  - {1-3 specific improvement suggestions based on the failure patterns}
+  - {2-3 specific, actionable improvement suggestions based on failure patterns}
 
 ═══════════════════════════════════════════════════════
 ```
