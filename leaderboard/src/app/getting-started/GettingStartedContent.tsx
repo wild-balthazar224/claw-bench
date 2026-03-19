@@ -1,6 +1,11 @@
 "use client";
 
 import { useI18n } from "../i18n";
+import { useState, useEffect } from "react";
+
+function fillTemplate(s: string, vars: Record<string, string | number>): string {
+  return s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? `{${k}}`));
+}
 
 interface DomainInfo {
   id: string;
@@ -27,11 +32,14 @@ const domainI18nKeys: Record<string, string> = {
 
 export default function GettingStartedContent({ domains }: { domains: DomainInfo[] }) {
   const { t } = useI18n();
+  const [stats, setStats] = useState({ totalTasks: 0, totalDomains: 0 });
+  useEffect(() => { fetch("/api/stats").then(r => r.json()).then(setStats).catch(() => {}); }, []);
+  const vars = { total: stats.totalTasks || "…", domains: stats.totalDomains || "…" };
   return (
     <>
       <header className="page-header">
         <h1>{t("gettingStarted.title")}</h1>
-        <p>{t("gettingStarted.subtitle")}</p>
+        <p>{fillTemplate(t("gettingStarted.subtitle"), vars)}</p>
       </header>
 
       <section className="card" style={{ marginBottom: "1.5rem" }}>
@@ -55,7 +63,7 @@ export default function GettingStartedContent({ domains }: { domains: DomainInfo
         <pre><code>claw-bench run -m deepseek-v3 -t file-001,code-002,cal-001,file-003 -n 1</code></pre>
         <h3>{t("gettingStarted.testDomain")}</h3>
         <pre><code>claw-bench run -m gemini-2.5-pro -t code-assistance</code></pre>
-        <h3>{t("gettingStarted.fullBenchmark")}</h3>
+        <h3>{fillTemplate(t("gettingStarted.fullBenchmark"), vars)}</h3>
         <pre><code>claw-bench run -m claude-sonnet-4-5-20250929 -t all -n 5</code></pre>
       </section>
 

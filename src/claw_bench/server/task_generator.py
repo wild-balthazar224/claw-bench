@@ -685,12 +685,19 @@ def _post_approve_sync():
                 text = re.sub(r"\d+ 个领域", f"{total_domains} 个领域", text, count=1)
                 readme.write_text(text)
 
-        # 6. Trigger frontend rebuild
+        # 6. Trigger frontend rebuild (npm may not be in container,
+        #    but leaderboard/out is a host mount — try anyway, log if fails)
         leaderboard_dir = _PROJECT_ROOT / "leaderboard"
         if (leaderboard_dir / "package.json").exists():
-            subprocess.run(["npm", "run", "build"], cwd=str(leaderboard_dir),
-                           capture_output=True, timeout=120)
-            logger.info("Frontend rebuilt after task approval")
+            try:
+                result = subprocess.run(["npm", "run", "build"], cwd=str(leaderboard_dir),
+                                        capture_output=True, text=True, timeout=120)
+                if result.returncode == 0:
+                    logger.info("Frontend rebuilt after task approval")
+                else:
+                    logger.warning("Frontend rebuild failed (npm may not be in container): %s", result.stderr[-200:])
+            except FileNotFoundError:
+                logger.info("npm not available in container — frontend rebuild must be done on host")
 
     except Exception as e:
         import traceback

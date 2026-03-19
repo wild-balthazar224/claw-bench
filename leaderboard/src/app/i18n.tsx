@@ -19,7 +19,7 @@ const translations = {
     },
     home: {
       title: "Claw Bench Leaderboard",
-      subtitle: "Standardized evaluation of AI Agent frameworks across 210 tasks, 14 domains, and 4 difficulty levels.",
+      subtitle: "Standardized evaluation of AI Agent frameworks across {total} tasks, {domains} domains, and 4 difficulty levels.",
       runBenchmark: "Run Benchmark",
       agentProfiles: "Agent Profiles",
       skillMd: "skill.md (for AI agents)",
@@ -85,7 +85,7 @@ const translations = {
     },
     gettingStarted: {
       title: "Getting Started with Claw Bench",
-      subtitle: "Evaluate your AI agent in under 5 minutes. 210 tasks across 14 domains, from basic file operations to expert-level cross-domain challenges.",
+      subtitle: "Evaluate your AI agent in under 5 minutes. {total} tasks across {domains} domains, from basic file operations to expert-level cross-domain challenges.",
       step1: "1. Install",
       step1FromSource: "Or from source:",
       step2: "2. Configure your LLM provider",
@@ -93,7 +93,7 @@ const translations = {
       step3: "3. Run a benchmark",
       smokeTest: "Smoke test (4 tasks, ~1 min)",
       testDomain: "Test a domain (15 tasks)",
-      fullBenchmark: "Full benchmark (210 tasks)",
+      fullBenchmark: "Full benchmark ({total} tasks)",
       capabilityTests: "Capability Tests",
       capabilityDesc: "Choose a specific domain to evaluate:",
       command: "Command",
@@ -279,7 +279,7 @@ const translations = {
     },
     home: {
       title: "Claw Bench 排行榜",
-      subtitle: "AI Agent 框架标准化评估：210 项任务、14 个领域、4 个难度等级。",
+      subtitle: "AI Agent 框架标准化评估：{total} 项任务、{domains} 个领域、4 个难度等级。",
       runBenchmark: "运行评测",
       agentProfiles: "Agent 配置",
       skillMd: "skill.md（AI Agent 用）",
@@ -358,7 +358,7 @@ const translations = {
     },
     gettingStarted: {
       title: "Claw Bench 快速开始",
-      subtitle: "5 分钟内评估你的 AI Agent。210 项任务覆盖 14 个领域，从基础文件操作到专家级跨领域挑战。",
+      subtitle: "5 分钟内评估你的 AI Agent。{total} 项任务覆盖 {domains} 个领域，从基础文件操作到专家级跨领域挑战。",
       step1: "1. 安装",
       step1FromSource: "或从源码安装：",
       step2: "2. 配置 LLM 提供商",
@@ -366,7 +366,7 @@ const translations = {
       step3: "3. 运行评测",
       smokeTest: "冒烟测试（4 项任务，约 1 分钟）",
       testDomain: "领域测试（15 项任务）",
-      fullBenchmark: "完整评测（210 项任务）",
+      fullBenchmark: "完整评测（{total} 项任务）",
       capabilityTests: "能力测试",
       capabilityDesc: "选择特定领域进行评估：",
       command: "命令",

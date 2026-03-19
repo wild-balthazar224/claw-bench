@@ -64,6 +64,19 @@ async def health():
     }
 
 
+# ── Stats endpoint ────────────────────────────────────────────────────
+
+@app.get("/api/stats")
+async def get_stats():
+    """Return dynamic task/domain counts from domains.json."""
+    config_path = _DATA_DIR / "config" / "domains.json"
+    if config_path.exists():
+        domains = json.loads(config_path.read_text())
+        total_tasks = sum(d.get("tasks", 0) for d in domains)
+        return {"totalTasks": total_tasks, "totalDomains": len(domains)}
+    return {"totalTasks": 0, "totalDomains": 0}
+
+
 # ── Public config endpoint ────────────────────────────────────────────
 
 @app.get("/api/config/{name}")

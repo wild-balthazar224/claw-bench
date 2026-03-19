@@ -1,10 +1,24 @@
 "use client";
 
 import { useI18n } from "./i18n";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+function useStats() {
+  const [stats, setStats] = useState({ totalTasks: 0, totalDomains: 0 });
+  useEffect(() => {
+    fetch("/api/stats").then(r => r.json()).then(setStats).catch(() => {});
+  }, []);
+  return stats;
+}
+
+function fillTemplate(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? `{${key}}`));
+}
 
 export function HomeHeader() {
   const { t } = useI18n();
+  const { totalTasks, totalDomains } = useStats();
+  const vars = { total: totalTasks || "…", domains: totalDomains || "…" };
   const skillUrl = "https://clawbench.net/skill.md";
   const commandText = `${t("home.calloutPrefix")} ${skillUrl} ${t("home.calloutSuffix")}${t("home.calloutAction")}`;
   const [copied, setCopied] = useState(false);
@@ -20,7 +34,7 @@ export function HomeHeader() {
     <>
       <header className="page-header">
         <h1>{t("home.title")}</h1>
-        <p>{t("home.subtitle")}</p>
+        <p>{fillTemplate(t("home.subtitle"), vars)}</p>
         <div
           style={{
             marginTop: "1.25rem",
