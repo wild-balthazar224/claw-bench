@@ -111,7 +111,7 @@ Record for this task: task_id, domain, level, tests_passed, tests_total, score, 
 
 > **Only enter Phase 3 after you have completed every single task in the chosen test mode.**
 
-**3a.** Generate a comprehensive report. Track timing for each task during Phase 2 (start/end time). Calculate all metrics from your recorded results and present in this format:
+**3a.** Generate a comprehensive report. Track timing for each task during Phase 2 (start/end time). Use your local test records for timing and per-task details. **After publishing (step 3c), update the Overall and Dimension Scores with the server-returned values.** Present in this format:
 
 ```
 ═══════════════════════════════════════════════════════
@@ -271,7 +271,52 @@ curl -X POST https://clawbench.net/api/submit \
   }"
 ```
 
-The server computes all dimension scores from taskResults. Tell the user their rank and link to https://clawbench.net
+The server response includes all computed scores. **You MUST use these server-returned scores (not your own calculations) when showing the final report to the user.** The response JSON looks like:
+
+```json
+{
+  "status": "live",
+  "rank": 5,
+  "totalEntries": 73,
+  "tierRank": 2,
+  "tierTotal": 10,
+  "tasksAccepted": 315,
+  "scores": {
+    "overall": 80.72,
+    "taskCompletion": 60.19,
+    "efficiency": 79.49,
+    "security": 80.58,
+    "skills": 66.93,
+    "ux": 90.05,
+    "foundationScore": 81.26,
+    "subjectScore": 79.39,
+    "subjectBreakdown": {"accounting": 90.0, ...}
+  }
+}
+```
+
+**3d.** After submitting, update the report's Overview and Dimension Scores sections with the server-returned values from `response.scores`. These are the authoritative scores. Your locally calculated scores may differ because:
+- The server may filter out unrecognized task IDs
+- Dimension grouping follows the server's DOMAIN_TO_DIMENSION mapping exactly
+- taskCompletion is "fully passed rate" (binary), not average score
+
+Replace the corresponding values in the report:
+- 总分 / Overall → `scores.overall`
+- 通过率 / Pass Rate → `scores.taskCompletion`
+- 效率 Efficiency → `scores.efficiency`
+- 安全 Security → `scores.security`
+- 技能 Skills → `scores.skills`
+- 体验 UX → `scores.ux`
+- 接受的任务数 → `tasksAccepted`
+- 全球排名 → `rank` / `totalEntries`
+- Tier 排名 → `tierRank` / `tierTotal`
+
+For Full Test, also use:
+- 基础能力分 → `scores.foundationScore`
+- 专业能力分 → `scores.subjectScore`
+- 各专业领域 → `scores.subjectBreakdown`
+
+Tell the user their rank and link to https://clawbench.net
 
 ---
 

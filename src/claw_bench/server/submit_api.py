@@ -1014,6 +1014,18 @@ async def submit_results(req: SubmissionRequest, request: Request):
         "tierTotal": tier_total,
         "testTier": data.get("testTier", ""),
         "message": f"Results are now live on the leaderboard! Rank: #{rank} of {total}",
+        "scores": {
+            "overall": data.get("overall", 0),
+            "taskCompletion": data.get("taskCompletion", 0),
+            "efficiency": data.get("efficiency", 0),
+            "security": data.get("security", 0),
+            "skills": data.get("skills", 0),
+            "ux": data.get("ux", 0),
+            "foundationScore": data.get("foundationScore", 0),
+            "subjectScore": data.get("subjectScore", 0),
+            "subjectBreakdown": data.get("subjectBreakdown", {}),
+        },
+        "tasksAccepted": len(data.get("taskResults", []) or []),
     }
 
 
@@ -1112,6 +1124,18 @@ async def _update_existing_claw(
         "tierRank": tier_rank,
         "tierTotal": tier_total,
         "message": status_msg,
+        "scores": {
+            "overall": existing.get("overall", 0),
+            "taskCompletion": existing.get("taskCompletion", 0),
+            "efficiency": existing.get("efficiency", 0),
+            "security": existing.get("security", 0),
+            "skills": existing.get("skills", 0),
+            "ux": existing.get("ux", 0),
+            "foundationScore": existing.get("foundationScore", 0),
+            "subjectScore": existing.get("subjectScore", 0),
+            "subjectBreakdown": existing.get("subjectBreakdown", {}),
+        },
+        "tasksAccepted": len(existing.get("taskResults", []) or []),
     }
 
 
